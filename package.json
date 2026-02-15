@@ -1,0 +1,43 @@
+{
+  "name": "g-helper-linux",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Linux port of G-Helper - ASUS laptop control application",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/netlify": "6.6.4",
+    "astro": "5.17.2",
+    "zustand": "5.0.11"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "3.7.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "author": {
+    "name": "utajum",
+    "url": "https://github.com/utajum"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/utajum/g-helper-linux"
+  },
+  "license": "MIT",
+  "keywords": [
+    "g-helper",
+    "asus",
+    "linux",
+    "laptop",
+    "fan-curve",
+    "performance",
+    "gpu",
+    "rog",
+    "tuf"
+  ]
+}

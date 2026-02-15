@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>G-Helper for Linux - ASUS Laptop Control</title>
+    <meta
+      name="description"
+      content="Linux port of G-Helper. Control ASUS laptop fans, performance modes, GPU switching, battery limits, keyboard RGB, and more."
+    />
+    <meta
+      name="keywords"
+      content="g-helper, asus, linux, fan curve, laptop control, performance mode, gpu mux, rog, tuf, rgb"
+    />
+
+    <!-- OpenGraph -->
+    <meta property="og:title" content="G-Helper for Linux - ASUS Laptop Control" />
+    <meta
+      property="og:description"
+      content="Linux port of G-Helper. Control ASUS laptop fans, performance modes, GPU switching, battery limits, keyboard RGB, and more."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter enhanced -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="G-Helper for Linux - ASUS Laptop Control" />
+    <meta
+      name="twitter:description"
+      content="Linux port of G-Helper. Control ASUS laptop fans, performance modes, GPU switching, battery limits, keyboard RGB, and more."
+    />
+
+    <meta name="color-scheme" content="light dark" />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style>
+  html,
+  body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body {
+      background: #1a1a1a;
+      color: #ffffff;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    body {
+      background: #ffffff;
+      color: #1a1a1a;
+    }
+  }
+</style>

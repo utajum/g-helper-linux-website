@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://g-helper-linux.elevatech.xyz/sitemap-index.xml

@@ -1,4 +1,5 @@
 ---
+import PostHog from "../components/posthog.astro";
 const siteUrl = 'https://g-helper-linux.elevatech.xyz';
 ---
 <!doctype html>
@@ -86,6 +87,7 @@ const siteUrl = 'https://g-helper-linux.elevatech.xyz';
   </head>
   <body>
     <slot />
+    <PostHog />
   </body>
 </html>
 

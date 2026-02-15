@@ -2,6 +2,8 @@
 
 Website for G-Helper Linux - ASUS laptop control application.
 
+**[g-helper-linux.elevatech.xyz](https://g-helper-linux.elevatech.xyz)**
+
 Built with [Astro](https://astro.build).
 
 ## Development

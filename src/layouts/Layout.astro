@@ -1,39 +1,79 @@
+---
+const siteUrl = 'https://g-helper-linux.elevatech.xyz';
+---
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <meta name="generator" content={Astro.generator} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>G-Helper for Linux | Enhance Asus Laptop Control</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={siteUrl} />
+
+    <title>G-Helper for Linux | Lightweight Control Tool for Asus Laptops</title>
     <meta
       name="description"
-      content="Discover a lightweight, open-source tool offering enhanced control and customization for Asus laptops on Linux, compatible with popular models for seamless performance adjustment."
+      content="Lightweight, open-source Armoury Crate alternative for Asus laptops on Linux. Control performance modes, fan curves, GPU switching, keyboard RGB, battery limits and more. Works with ROG, TUF, Strix, ProArt, Vivobook and Zenbook."
     />
     <meta
       name="keywords"
-      content="g-helper, asus, linux, fan curve, laptop control, performance mode, gpu mux, rog, tuf, rgb"
+      content="g-helper, asus, linux, fan curve, laptop control, performance mode, gpu mux, rog, tuf, rgb, armoury crate, alternative, ubuntu, kde, fan speed, battery limit, keyboard backlight"
     />
 
     <!-- OpenGraph -->
-    <meta property="og:title" content="G-Helper for Linux | Enhance Asus Laptop Control" />
+    <meta property="og:title" content="G-Helper for Linux | Lightweight Control Tool for Asus Laptops" />
     <meta
       property="og:description"
-      content="Discover a lightweight, open-source tool offering enhanced control and customization for Asus laptops on Linux, compatible with popular models for seamless performance adjustment."
+      content="Lightweight, open-source Armoury Crate alternative for Asus laptops on Linux. Control performance modes, fan curves, GPU switching, keyboard RGB, battery limits and more."
     />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content={siteUrl} />
+    <meta property="og:site_name" content="G-Helper for Linux" />
+    <meta property="og:image" content={`${siteUrl}/screenshot-main.png`} />
+    <meta property="og:image:width" content="800" />
+    <meta property="og:image:height" content="600" />
 
-    <!-- Twitter enhanced -->
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="G-Helper for Linux | Enhance Asus Laptop Control" />
+    <meta name="twitter:title" content="G-Helper for Linux | Lightweight Control Tool for Asus Laptops" />
     <meta
       name="twitter:description"
-      content="Discover a lightweight, open-source tool offering enhanced control and customization for Asus laptops on Linux, compatible with popular models for seamless performance adjustment."
+      content="Lightweight, open-source Armoury Crate alternative for Asus laptops on Linux. Control performance modes, fan curves, GPU switching, keyboard RGB, battery limits and more."
     />
+    <meta name="twitter:image" content={`${siteUrl}/screenshot-main.png`} />
 
     <meta name="color-scheme" content="light dark" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "http://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "G-Helper for Linux",
+      "operatingSystem": "Linux",
+      "applicationCategory": "UtilitiesApplication",
+      "description": "Lightweight, open-source Armoury Crate alternative for Asus laptops on Linux. Control performance modes, fan curves, GPU switching, keyboard RGB, battery limits and more.",
+      "url": siteUrl,
+      "downloadUrl": "https://github.com/utajum/g-helper-linux/releases",
+      "softwareVersion": "1.0",
+      "author": {
+        "@type": "Person",
+        "name": "utajum",
+        "url": "https://github.com/utajum"
+      },
+      "license": "https://github.com/utajum/g-helper-linux/blob/master/LICENSE",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    })} />
   </head>
   <body>
     <slot />
@@ -46,12 +86,14 @@
     margin: 0;
     width: 100%;
     height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.6;
   }
 
   @media (prefers-color-scheme: dark) {
     body {
-      background: #1a1a1a;
-      color: #ffffff;
+      background: #111111;
+      color: #e0e0e0;
     }
   }
 

@@ -3,64 +3,754 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout>
-  <main>
-    <a href="/screenshot.png" target="_blank">
-      <img src="/screenshot.png" alt="G-Helper for Linux" />
-    </a>
-    <p class="github-link">
-      <a href="https://github.com/utajum/g-helper-linux" target="_blank" rel="noopener">
-        View on GitHub
+  <!-- Hero -->
+  <section class="hero">
+    <h1>G-Helper for Linux</h1>
+    <p class="subtitle">Lightweight control tool for Asus laptops on Linux</p>
+    <div class="hero-buttons">
+      <a href="https://github.com/utajum/g-helper-linux/releases" class="btn btn-primary" target="_blank" rel="noopener">
+        Download
       </a>
+      <a href="https://buymeacoffee.com/utajum" class="btn btn-donate" target="_blank" rel="noopener">
+        Support Project
+      </a>
+    </div>
+    <p class="hero-links">
+      <a href="https://github.com/utajum/g-helper-linux" target="_blank" rel="noopener">Free and open source on GitHub</a>
     </p>
-  </main>
+    <div class="terminal">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <span class="terminal-title">bash</span>
+        <button class="copy-btn" id="copyBtn" aria-label="Copy to clipboard">
+          <svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+      <div class="terminal-body">
+        <code id="installCmd"><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash</code>
+      </div>
+    </div>
+
+    <div class="hero-image" style="margin-top: 2.5rem;">
+      <a href="/screenshot.png" target="_blank">
+        <img src="/screenshot-main.png" alt="G-Helper for Linux interface showing performance modes, fan curves, GPU switching and battery controls" />
+      </a>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section class="section">
+    <div class="container">
+      <p class="about-text">
+        Small and lightweight <strong>Armoury Crate alternative</strong> for Asus laptops on Linux, offering almost the same functionality with a much smaller footprint. A port of the original <a href="https://github.com/seerge/g-helper" target="_blank" rel="noopener">G-Helper</a> for Windows.
+      </p>
+      <p class="about-text">
+        Works with all popular models, such as <strong>ROG Zephyrus</strong> G14, G15, G16, M16, <strong>Flow</strong> X13, X16, Z13, <strong>TUF</strong> Series, <strong>Strix</strong> or <strong>Scar</strong> Series, <strong>ProArt</strong>, <strong>Vivobook</strong>, <strong>Zenbook</strong> and many more.
+      </p>
+    </div>
+  </section>
+
+  <!-- Ubuntu Focus -->
+  <section class="section ubuntu-section">
+    <div class="container">
+      <div class="ubuntu-callout">
+        <svg class="ubuntu-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="48" height="48"><circle cx="128" cy="128" r="128" fill="#E95420"/><circle cx="128" cy="128" r="100" fill="none" stroke="#fff" stroke-width="16"/><circle cx="128" cy="28" r="18" fill="#fff"/><circle cx="41.2" cy="178" r="18" fill="#fff"/><circle cx="214.8" cy="178" r="18" fill="#fff"/></svg>
+        <div class="ubuntu-text">
+          <h2>Built for Ubuntu</h2>
+          <p>
+            Since <code>asusctl</code> has never worked on Ubuntu without sacrificing a goat on an obscure mountain peak on a different continent, G-Helper for Linux was built with Ubuntu as a first-class citizen. No PPAs from the shadow realm, no kernel patches, no prayers &mdash; just install and go.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Advantages -->
+  <section class="section section-alt">
+    <div class="container">
+      <h2>Advantages</h2>
+      <ul class="feature-list">
+        <li>Seamless GPU switching between integrated and discrete graphics</li>
+        <li>All performance modes fully customizable with power limits and fan curves</li>
+        <li>Lightweight &mdash; single native binary, no bloat, no background services</li>
+        <li>Simple and clean native UI with easy access to all settings</li>
+        <li>Ubuntu is a first-class citizen &mdash; no goat sacrifices required</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section">
+    <div class="container">
+      <h2>Main Features</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>Performance Modes</h3>
+          <p>Silent, Balanced, Turbo &mdash; built-in BIOS modes with default fan curves</p>
+        </div>
+        <div class="feature-card">
+          <h3>GPU Modes</h3>
+          <p>Eco, Standard, Optimized (MUX) &mdash; automatic switching based on power source</p>
+        </div>
+        <div class="feature-card">
+          <h3>Power Limits</h3>
+          <p>CPU PL1/PL2, Dynamic Boost, temperature targets &mdash; all adjustable per mode</p>
+        </div>
+        <div class="feature-card">
+          <h3>Screen Control</h3>
+          <p>Refresh rate switching, Panel Overdrive, MiniLED multi-zone</p>
+        </div>
+        <div class="feature-card">
+          <h3>Keyboard Backlight</h3>
+          <p>Brightness control and RGB color customization</p>
+        </div>
+        <div class="feature-card">
+          <h3>Display</h3>
+          <p>Brightness and gamma adjustment</p>
+        </div>
+        <div class="feature-card">
+          <h3>Battery Health</h3>
+          <p>Charge limit (40&ndash;100%) to preserve battery longevity</p>
+        </div>
+        <div class="feature-card">
+          <h3>CPU Boost</h3>
+          <p>Enable or disable turbo boost on the fly</p>
+        </div>
+        <div class="feature-card">
+          <h3>System Tray</h3>
+          <p>Background tray icon with context menu for quick access</p>
+        </div>
+        <div class="feature-card">
+          <h3>Auto-Start</h3>
+          <p>XDG autostart desktop integration &mdash; launches with your session</p>
+        </div>
+        <div class="feature-card">
+          <h3>Special Key Bindings</h3>
+          <p>Map ASUS special keys (ROG, Aura, Fn+F4/F5) to toggle the app, cycle RGB modes, switch camera and more</p>
+        </div>
+        <div class="feature-card">
+          <h3>Monitoring</h3>
+          <p>CPU and GPU temperature, fan speeds and battery status</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compatibility -->
+  <section class="section section-alt">
+    <div class="container">
+      <h2>Compatibility</h2>
+      <div class="compat-grid">
+        <div class="compat-card">
+          <h3>Distros</h3>
+          <p>Ubuntu 22.04+, Debian 12+, Fedora 38+, Arch &mdash; any distro with kernel 5.17+</p>
+        </div>
+        <div class="compat-card">
+          <h3>Desktop</h3>
+          <p>Tested on <strong>KDE</strong>. Other desktop environments should also work (X11 or Wayland)</p>
+        </div>
+        <div class="compat-card">
+          <h3>Kernel</h3>
+          <p>5.17+ minimum, 6.2+ recommended, 6.9+ for all features (MiniLED, full PPT control)</p>
+        </div>
+        <div class="compat-card">
+          <h3>Module</h3>
+          <p>Requires <code>asus-nb-wmi</code> &mdash; loaded by default on ASUS laptops</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Full Screenshot -->
+  <section class="section">
+    <div class="container">
+      <h2>In Action</h2>
+      <div class="full-screenshot">
+        <a href="/screenshot.png" target="_blank">
+          <img src="/screenshot.png" alt="G-Helper for Linux running on a KDE desktop, showing all panels" loading="lazy" />
+        </a>
+        <p class="caption">Click to view full size</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section section-alt cta">
+    <div class="container">
+      <h2>Get Started</h2>
+      <p>Download the latest release, or build from source.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/utajum/g-helper-linux/releases" class="btn btn-primary" target="_blank" rel="noopener">
+          Download
+        </a>
+        <a href="https://github.com/utajum/g-helper-linux" class="btn btn-secondary" target="_blank" rel="noopener">
+          View Source
+        </a>
+        <a href="https://buymeacoffee.com/utajum" class="btn btn-donate" target="_blank" rel="noopener">
+          Buy Me A Coffee
+        </a>
+      </div>
+      <p class="contribute">Pull requests and feature requests are welcome!</p>
+    </div>
+  </section>
+
+  <script>
+    document.getElementById('copyBtn')?.addEventListener('click', () => {
+      const cmd = 'curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash';
+      navigator.clipboard.writeText(cmd).then(() => {
+        const copyIcon = document.querySelector('.copy-icon') as HTMLElement;
+        const checkIcon = document.querySelector('.check-icon') as HTMLElement;
+        if (copyIcon && checkIcon) {
+          copyIcon.style.display = 'none';
+          checkIcon.style.display = 'block';
+          setTimeout(() => {
+            copyIcon.style.display = 'block';
+            checkIcon.style.display = 'none';
+          }, 2000);
+        }
+      });
+    });
+  </script>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/utajum/g-helper-linux" target="_blank" rel="noopener">GitHub</a>
+        <span class="sep">|</span>
+        <a href="https://github.com/utajum/g-helper-linux/issues" target="_blank" rel="noopener">Report Issue</a>
+        <span class="sep">|</span>
+        <a href="https://github.com/utajum/g-helper-linux/discussions" target="_blank" rel="noopener">Discussions</a>
+        <span class="sep">|</span>
+        <a href="https://buymeacoffee.com/utajum" target="_blank" rel="noopener">Donate</a>
+      </div>
+      <p class="credits">
+        Based on <a href="https://github.com/seerge/g-helper" target="_blank" rel="noopener">G-Helper</a> by seerge.
+        Built with <a href="https://avaloniaui.net/" target="_blank" rel="noopener">Avalonia UI</a>.
+      </p>
+      <p class="disclaimer">
+        "Asus", "ROG", "TUF", and "Armoury Crate" are trademarked by and belong to AsusTek Computer, Inc. This project is not affiliated with or endorsed by AsusTek Computer, Inc.
+        The software is provided "as is" without warranty of any kind.
+      </p>
+    </div>
+  </footer>
 </Layout>
 
 <style>
-  main {
+  /* Layout */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .section {
+    padding: 4rem 0;
+  }
+
+  .section h2 {
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center;
+    padding: 4rem 1.5rem 2rem;
+  }
+
+  .hero h1 {
+    font-size: 2.8rem;
+    margin: 0 0 0.5rem;
+    font-weight: 700;
+  }
+
+  .subtitle {
+    font-size: 1.25rem;
+    margin: 0 0 2rem;
+    opacity: 0.7;
+  }
+
+  .hero-buttons {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    gap: 1rem;
     justify-content: center;
-    min-height: 100vh;
-    padding: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
   }
 
-  img {
-    max-width: 100%;
+  .hero-links {
+    margin-bottom: 2.5rem;
+  }
+
+  .hero-links a {
+    opacity: 0.6;
+    font-size: 0.9rem;
+  }
+
+  .hero-image {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .hero-image img {
+    width: 100%;
     height: auto;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    transition: transform 0.2s ease;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
   }
 
-  img:hover {
-    transform: scale(1.02);
-  }
-
-  .github-link {
-    margin-top: 1.5rem;
-  }
-
-  .github-link a {
-    color: inherit;
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    border-radius: 50px;
     text-decoration: none;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: opacity 0.2s, transform 0.2s;
   }
 
-  .github-link a:hover {
-    text-decoration: underline;
+  .btn:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+  }
+
+  .btn-primary {
+    background: #4a9eff;
+    color: #fff;
+  }
+
+  .btn-secondary {
+    border: 2px solid currentColor;
+    opacity: 0.8;
+  }
+
+  .btn-donate {
+    background: #ffdd00;
+    color: #000;
+  }
+
+  /* About */
+  .about-text {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 1rem;
+    font-size: 1.1rem;
+    line-height: 1.7;
+  }
+
+  /* Ubuntu section */
+  .ubuntu-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 2rem;
+    border-radius: 12px;
   }
 
   @media (prefers-color-scheme: dark) {
-    .github-link a {
-      color: #a0a0a0;
+    .ubuntu-callout {
+      background: #1e1210;
+      border: 1px solid #3a2018;
     }
   }
 
   @media (prefers-color-scheme: light) {
-    .github-link a {
-      color: #555555;
+    .ubuntu-callout {
+      background: #fdf2ee;
+      border: 1px solid #f0c8b8;
+    }
+  }
+
+  .ubuntu-logo {
+    flex-shrink: 0;
+    margin-top: 0.25rem;
+  }
+
+  .ubuntu-text h2 {
+    text-align: left;
+    font-size: 1.4rem;
+    margin: 0 0 0.75rem;
+  }
+
+  .ubuntu-text p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.7;
+    opacity: 0.85;
+  }
+
+  .ubuntu-text code {
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .ubuntu-text code {
+      background: #2a2a2a;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .ubuntu-text code {
+      background: #e8e8e8;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ubuntu-callout {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .ubuntu-text h2 {
+      text-align: center;
+    }
+  }
+
+  /* Alt section bg */
+  @media (prefers-color-scheme: dark) {
+    .section-alt {
+      background: #1a1a1a;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .section-alt {
+      background: #f5f5f5;
+    }
+  }
+
+  /* Feature list */
+  .feature-list {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+  }
+
+  .feature-list li {
+    padding: 0.6rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    font-size: 1.05rem;
+  }
+
+  .feature-list li::before {
+    content: '>';
+    position: absolute;
+    left: 0;
+    color: #4a9eff;
+    font-weight: bold;
+  }
+
+  /* Features grid */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
+    border-radius: 10px;
+    transition: transform 0.2s;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .feature-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  .feature-card p {
+    margin: 0;
+    opacity: 0.75;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .feature-card {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .feature-card {
+      background: #f9f9f9;
+      border: 1px solid #e0e0e0;
+    }
+  }
+
+  /* Compat grid */
+  .compat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .compat-card {
+    text-align: center;
+    padding: 1.5rem;
+  }
+
+  .compat-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+  }
+
+  .compat-card p {
+    margin: 0;
+    opacity: 0.75;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .compat-card code {
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .compat-card code {
+      background: #2a2a2a;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .compat-card code {
+      background: #e8e8e8;
+    }
+  }
+
+  /* Full screenshot */
+  .full-screenshot {
+    text-align: center;
+  }
+
+  .full-screenshot img {
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  .full-screenshot img:hover {
+    transform: scale(1.01);
+  }
+
+  .caption {
+    margin-top: 0.75rem;
+    opacity: 0.5;
+    font-size: 0.85rem;
+  }
+
+  /* Terminal */
+  .terminal {
+    max-width: 700px;
+    margin: 1.5rem auto 0;
+    border-radius: 10px;
+    overflow: hidden;
+    text-align: left;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    background: #2d2d2d;
+    position: relative;
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .dot-red { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green { background: #28c840; }
+
+  .terminal-title {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    color: #999;
+    font-family: monospace;
+  }
+
+  .copy-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .copy-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .terminal-body {
+    background: #1a1a1a;
+    padding: 1.25rem 1.25rem;
+    overflow-x: auto;
+  }
+
+  .terminal-body code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+    white-space: nowrap;
+    line-height: 1.6;
+  }
+
+  .prompt {
+    color: #28c840;
+    margin-right: 0.5rem;
+    user-select: none;
+  }
+
+  /* CTA */
+  .cta {
+    text-align: center;
+  }
+
+  .cta p {
+    opacity: 0.7;
+  }
+
+  .contribute {
+    margin-top: 1.5rem;
+    font-size: 0.95rem;
+  }
+
+  /* Footer */
+  footer {
+    padding: 2.5rem 0;
+    text-align: center;
+    border-top: 1px solid;
+    opacity: 0.6;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    footer {
+      border-color: #2a2a2a;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    footer {
+      border-color: #ddd;
+    }
+  }
+
+  .footer-links {
+    margin-bottom: 1rem;
+  }
+
+  .footer-links a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .footer-links a:hover {
+    text-decoration: underline;
+  }
+
+  .sep {
+    margin: 0 0.5rem;
+    opacity: 0.4;
+  }
+
+  .credits {
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .credits a {
+    color: inherit;
+  }
+
+  .disclaimer {
+    font-size: 0.75rem;
+    max-width: 600px;
+    margin: 0 auto;
+    opacity: 0.7;
+    line-height: 1.5;
+  }
+
+  /* Links */
+  a {
+    color: inherit;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .btn-secondary {
+      color: #e0e0e0;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .btn-secondary {
+      color: #1a1a1a;
+    }
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .hero h1 {
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      font-size: 1.05rem;
+    }
+
+    .section {
+      padding: 2.5rem 0;
+    }
+
+    .features-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .compat-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 </style>

@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Demo from '../components/Demo.astro';
 ---
 
 <Layout>
@@ -18,7 +19,7 @@ import Layout from '../layouts/Layout.astro';
     <p class="hero-links">
       <a href="https://github.com/utajum/g-helper-linux" target="_blank" rel="noopener">Free and open source on GitHub</a>
     </p>
-    <div class="terminal">
+    <div class="terminal" id="terminal">
       <div class="terminal-header">
         <div class="terminal-dots">
           <span class="dot dot-red"></span>
@@ -32,9 +33,11 @@ import Layout from '../layouts/Layout.astro';
         </button>
       </div>
       <div class="terminal-body">
-        <code id="installCmd"><span class="prompt">$</span> curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash</code>
+        <div class="terminal-line" data-text="curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash"><span class="prompt">$</span> <span class="line-text"></span><span class="cursor">_</span></div>
       </div>
     </div>
+
+    <Demo />
 
     <div class="hero-image" style="margin-top: 2.5rem;">
       <a href="/screenshot.png" target="_blank">
@@ -200,6 +203,7 @@ import Layout from '../layouts/Layout.astro';
   </section>
 
   <script>
+    // ── Copy button ──
     document.getElementById('copyBtn')?.addEventListener('click', () => {
       const cmd = 'curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash';
       navigator.clipboard.writeText(cmd).then(() => {
@@ -215,6 +219,46 @@ import Layout from '../layouts/Layout.astro';
         }
       });
     });
+
+    // ── Terminal typing animation ──
+    const terminal = document.getElementById('terminal');
+    if (terminal) {
+      const line = terminal.querySelector('.terminal-line') as HTMLElement;
+      const target = line.querySelector('.line-text') as HTMLElement;
+      const cursor = line.querySelector('.cursor') as HTMLElement;
+      const text = line.dataset.text || '';
+      let started = false;
+
+      function run() {
+        if (started) return;
+        started = true;
+        cursor.classList.add('typing');
+        let i = 0;
+        function tick() {
+          if (i < text.length) {
+            target.textContent += text[i];
+            i++;
+            setTimeout(tick, Math.floor(Math.random() * 36) + 25);
+          } else {
+            cursor.classList.remove('typing');
+          }
+        }
+        tick();
+      }
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              run();
+              observer.disconnect();
+            }
+          }
+        },
+        { threshold: 0.4 },
+      );
+      observer.observe(terminal);
+    }
   </script>
 
   <!-- Footer -->
@@ -742,9 +786,9 @@ import Layout from '../layouts/Layout.astro';
 
   /* ── Terminal ── */
   .terminal {
-    max-width: 700px;
+    max-width: 1040px;
     margin: 1.5rem auto 0;
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
     text-align: left;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
@@ -762,19 +806,19 @@ import Layout from '../layouts/Layout.astro';
   .terminal-header {
     display: flex;
     align-items: center;
-    padding: 0.6rem 1rem;
+    padding: 0.75rem 1.2rem;
     background: #2d2d2d;
     position: relative;
   }
 
   .terminal-dots {
     display: flex;
-    gap: 6px;
+    gap: 7px;
   }
 
   .dot {
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
     border-radius: 50%;
   }
 
@@ -786,7 +830,7 @@ import Layout from '../layouts/Layout.astro';
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: #999;
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
@@ -812,22 +856,51 @@ import Layout from '../layouts/Layout.astro';
 
   .terminal-body {
     background: #1a1a1a;
-    padding: 1.25rem 1.25rem;
+    padding: 1rem 1.5rem;
     overflow-x: auto;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 0.92rem;
+    color: #e0e0e0;
+    line-height: 1.8;
   }
 
-  .terminal-body code {
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
-    font-size: 0.9rem;
-    color: #e0e0e0;
+  .terminal-line {
     white-space: nowrap;
-    line-height: 1.6;
+  }
+
+  .terminal-line.hidden {
+    display: none;
+  }
+
+  .terminal-line[data-type="output"] .line-text {
+    color: #999;
+  }
+
+  .terminal-line[data-type="success"] .line-text {
+    color: #28c840;
   }
 
   .prompt {
     color: #28c840;
     margin-right: 0.5rem;
     user-select: none;
+  }
+
+  /* Blinking cursor */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .cursor {
+    color: #28c840;
+    font-weight: bold;
+    animation: blink 1s step-end infinite;
+  }
+
+  .cursor.typing {
+    animation: none;
+    opacity: 1;
   }
 
   /* ── CTA ── */
@@ -939,6 +1012,17 @@ import Layout from '../layouts/Layout.astro';
 
     .compat-grid {
       grid-template-columns: 1fr 1fr;
+    }
+
+    .terminal-body {
+      font-size: 0.75rem;
+      padding: 1rem;
+      min-height: 150px;
+    }
+
+    .terminal-line {
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   }
 </style>

@@ -1,0 +1,393 @@
+<!-- Demo: collapsible installer preview with asciinema cast playback -->
+<div class="demo-wrapper" id="demo-section">
+  <button class="demo-toggle" id="demoToggle" aria-expanded="false">
+    <svg class="demo-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+    <span>installer preview</span>
+  </button>
+  <div class="demo-panel" id="demoPanel">
+    <div class="demo-terminal">
+      <div class="demo-bar">
+        <div class="demo-dots">
+          <span class="ddot"></span>
+          <span class="ddot"></span>
+          <span class="ddot"></span>
+        </div>
+        <span class="demo-label">bash</span>
+        <button class="demo-replay-btn" id="demoReplayBtn" aria-label="Replay demo" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Replay
+        </button>
+      </div>
+      <div class="demo-body" id="demoBody">
+        <pre id="demoOutput"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 256-color palette lookup (most-used colors in the cast)
+  const COLOR_256: Record<number, string> = {
+    15: '#ffffff', 21: '#0000ff', 31: '#0087af', 45: '#00d7ff',
+    46: '#00ff00', 51: '#00ffff', 82: '#5fff00', 129: '#af00ff',
+    160: '#d70000', 196: '#ff0000', 208: '#ff8700', 214: '#ffaf00',
+    225: '#ffd7ff', 226: '#ffff00',
+  };
+
+  const BASIC_FG: Record<number, string> = {
+    30: '#000', 31: '#ff5f57', 32: '#28c840', 33: '#febc2e',
+    34: '#5f87ff', 35: '#af00ff', 36: '#00ffff', 37: '#e6edf3',
+    90: '#6e7681', 91: '#ff5f57', 92: '#28c840', 93: '#febc2e',
+    94: '#5f87ff', 95: '#af00ff', 96: '#00ffff', 97: '#ffffff',
+  };
+
+  // Persistent ANSI state across frames
+  interface AnsiState { bold: boolean; dim: boolean; fgColor: string; }
+  let ansiState: AnsiState = { bold: false, dim: false, fgColor: '' };
+
+  function ansiToHtml(text: string, state: AnsiState): { html: string; state: AnsiState } {
+    let html = '';
+    let i = 0;
+    let bold = state.bold;
+    let dim = state.dim;
+    let fgColor = state.fgColor;
+    let spanOpen = false;
+
+    function openSpan() {
+      if (spanOpen) html += '</span>';
+      const classes: string[] = [];
+      const styles: string[] = [];
+      if (bold) classes.push('ansi-bold');
+      if (dim) classes.push('ansi-dim');
+      if (fgColor) styles.push('color:' + fgColor);
+      if (classes.length || styles.length) {
+        html += '<span';
+        if (classes.length) html += ' class="' + classes.join(' ') + '"';
+        if (styles.length) html += ' style="' + styles.join(';') + '"';
+        html += '>';
+        spanOpen = true;
+      } else {
+        spanOpen = false;
+      }
+    }
+
+    function closeSpan() {
+      if (spanOpen) { html += '</span>'; spanOpen = false; }
+    }
+
+    // Re-open span if we're continuing styled state from previous frame
+    if (bold || dim || fgColor) openSpan();
+
+    while (i < text.length) {
+      if (text[i] === '\u001b') {
+        if (text[i + 1] === '[') {
+          let j = i + 2;
+          while (j < text.length && text[j] >= '\x20' && text[j] <= '\x3f') j++;
+          const paramStr = text.slice(i + 2, j);
+          const cmd = j < text.length ? text[j] : '';
+          i = j + 1;
+
+          if (cmd === 'm') {
+            const params = paramStr ? paramStr.split(';').map(Number) : [0];
+            let p = 0;
+            while (p < params.length) {
+              const code = params[p];
+              if (code === 0) {
+                closeSpan();
+                bold = false; dim = false; fgColor = '';
+              } else if (code === 1) {
+                closeSpan(); bold = true; openSpan();
+              } else if (code === 2) {
+                closeSpan(); dim = true; openSpan();
+              } else if (code >= 30 && code <= 37 || code >= 90 && code <= 97) {
+                closeSpan();
+                fgColor = BASIC_FG[code] || '';
+                openSpan();
+              } else if (code === 38 && params[p + 1] === 5) {
+                const colorIdx = params[p + 2] || 0;
+                closeSpan();
+                fgColor = COLOR_256[colorIdx] || '';
+                openSpan();
+                p += 2;
+              } else if (code === 39) {
+                closeSpan(); fgColor = '';
+              }
+              p++;
+            }
+          }
+        } else if (text[i + 1] === '(') {
+          i += 3;
+        } else {
+          i += 2;
+        }
+      } else if (text[i] === '\r') {
+        i++;
+      } else if (text[i] === '\n') {
+        closeSpan();
+        html += '\n';
+        if (bold || dim || fgColor) openSpan();
+        i++;
+      } else if (text[i] === '<') {
+        html += '&lt;'; i++;
+      } else if (text[i] === '>') {
+        html += '&gt;'; i++;
+      } else if (text[i] === '&') {
+        html += '&amp;'; i++;
+      } else {
+        html += text[i]; i++;
+      }
+    }
+    closeSpan();
+    return { html, state: { bold, dim, fgColor } };
+  }
+
+  let demoFrames: [number, string][] = [];
+  let demoPlaying = false;
+  let demoTimeouts: number[] = [];
+  let demoOpened = false;
+
+  async function loadDemoFrames() {
+    if (demoFrames.length) return;
+    try {
+      const resp = await fetch('/demo-frames.json');
+      demoFrames = await resp.json();
+    } catch (e) {
+      console.error('Failed to load demo frames:', e);
+    }
+  }
+
+  function playDemo() {
+    if (demoPlaying) return;
+    demoPlaying = true;
+    const output = document.getElementById('demoOutput');
+    const body = document.getElementById('demoBody');
+    const replayBtn = document.getElementById('demoReplayBtn');
+    if (!output || !body) return;
+
+    output.innerHTML = '';
+    if (replayBtn) replayBtn.style.display = 'none';
+    ansiState = { bold: false, dim: false, fgColor: '' };
+
+    let elapsed = 0;
+
+    demoFrames.forEach(([deltaMs, text], idx) => {
+      elapsed += deltaMs;
+      const tid = window.setTimeout(() => {
+        // Handle carriage return (\r without any \n) — overwrite the last line
+        // Only triggers for progress bars (\r[████...] 40%...) not \r\r\n line endings
+        const isOverwrite = text.startsWith('\r') && !text.includes('\n');
+        if (isOverwrite) {
+          // Remove the last line from output (everything after the last \n)
+          const html = output.innerHTML;
+          const lastNewline = html.lastIndexOf('\n');
+          if (lastNewline !== -1) {
+            output.innerHTML = html.substring(0, lastNewline + 1);
+          } else {
+            output.innerHTML = '';
+          }
+          // Strip leading \r before rendering
+          text = text.replace(/^\r+/, '');
+        }
+        const result = ansiToHtml(text, ansiState);
+        ansiState = result.state;
+        output.innerHTML += result.html;
+        body.scrollTop = body.scrollHeight;
+
+        if (idx === demoFrames.length - 1) {
+          demoPlaying = false;
+          if (replayBtn) replayBtn.style.display = 'inline-flex';
+        }
+      }, elapsed);
+      demoTimeouts.push(tid);
+    });
+  }
+
+  function stopDemo() {
+    demoTimeouts.forEach(t => clearTimeout(t));
+    demoTimeouts = [];
+    demoPlaying = false;
+    const output = document.getElementById('demoOutput');
+    const replayBtn = document.getElementById('demoReplayBtn');
+    if (output) output.innerHTML = '';
+    if (replayBtn) replayBtn.style.display = 'none';
+  }
+
+  function replayDemo() {
+    stopDemo();
+    playDemo();
+  }
+
+  document.getElementById('demoReplayBtn')?.addEventListener('click', replayDemo);
+
+  const toggle = document.getElementById('demoToggle');
+  const wrapper = document.getElementById('demo-section');
+
+  toggle?.addEventListener('click', async () => {
+    const isOpen = wrapper?.classList.contains('open');
+
+    if (isOpen) {
+      // Close
+      wrapper?.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      stopDemo();
+    } else {
+      // Open
+      wrapper?.classList.add('open');
+      toggle.setAttribute('aria-expanded', 'true');
+      await loadDemoFrames();
+      // Wait for the slide animation to finish before playing
+      setTimeout(playDemo, 500);
+    }
+  });
+</script>
+
+<style>
+  .demo-wrapper {
+    max-width: 1040px;
+    margin: 1rem auto 0;
+    text-align: left;
+  }
+
+  /* ── Toggle button ── */
+  .demo-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 0.4rem 0;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .demo-toggle:hover {
+    color: #4a9eff;
+  }
+
+  .demo-arrow {
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  .open .demo-arrow {
+    transform: rotate(90deg);
+  }
+
+  /* ── Slide panel ── */
+  .demo-panel {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.4s ease;
+  }
+
+  .open .demo-panel {
+    max-height: 650px;
+    opacity: 1;
+  }
+
+  /* ── Terminal chrome ── */
+  .demo-terminal {
+    margin-top: 0.5rem;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0a0d12;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(74, 158, 255, 0.12);
+  }
+
+  .demo-bar {
+    display: flex;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    background: #2d2d2d;
+  }
+
+  .demo-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .ddot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .ddot:nth-child(1) { background: #ff5f57; }
+  .ddot:nth-child(2) { background: #febc2e; }
+  .ddot:nth-child(3) { background: #28c840; }
+
+  .demo-label {
+    flex: 1;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #999;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  .demo-replay-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: 1px solid rgba(74, 158, 255, 0.3);
+    color: #999;
+    cursor: pointer;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .demo-replay-btn:hover {
+    color: #4a9eff;
+    border-color: #4a9eff;
+  }
+
+  /* ── Terminal body ── */
+  .demo-body {
+    height: 520px;
+    overflow-y: auto;
+    padding: 1rem 1.25rem;
+    background: #1a1a1a;
+  }
+
+  .demo-body::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .demo-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .demo-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+
+  .demo-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  #demoOutput {
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: #e0e0e0;
+    margin: 0;
+    white-space: pre;
+    tab-size: 8;
+  }
+
+  /* ANSI color classes used by ansiToHtml() */
+  :global(.ansi-bold) { font-weight: 700; }
+  :global(.ansi-dim) { opacity: 0.5; }
+</style>

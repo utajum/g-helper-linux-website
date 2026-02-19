@@ -7,7 +7,21 @@ import Demo from '../components/Demo.astro';
   <!-- Hero -->
   <section class="hero">
     <h1>G-Helper for Linux</h1>
-    <p class="subtitle">Lightweight control tool for Asus laptops on Linux</p>
+    <p class="subtitle">Lightweight Control Tool for Asus Gaming Laptops on Linux</p>
+    <div class="stats-row" id="statsRow" style="display:none;">
+      <div class="stat-item">
+        <span class="stat-value" id="statDownloads">--</span>
+        <span class="stat-label">Total Downloads</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" id="statVersion">--</span>
+        <span class="stat-label">Latest Version</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" id="statStars">--</span>
+        <span class="stat-label">Github Stars</span>
+      </div>
+    </div>
     <div class="hero-buttons">
       <a href="https://github.com/utajum/g-helper-linux/releases" class="btn btn-primary" target="_blank" rel="noopener">
         Download
@@ -265,6 +279,79 @@ import Demo from '../components/Demo.astro';
     }
   </script>
 
+  <script>
+    // ── GitHub Stats ──
+    (async () => {
+      const row = document.getElementById('statsRow');
+      if (!row) return;
+
+      try {
+        const [releasesRes, repoRes] = await Promise.all([
+          fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', {
+            headers: { Accept: 'application/vnd.github.v3+json' },
+          }),
+          fetch('https://api.github.com/repos/utajum/g-helper-linux', {
+            headers: { Accept: 'application/vnd.github.v3+json' },
+          }),
+        ]);
+
+        if (!releasesRes.ok || !repoRes.ok) return;
+
+        const releases = await releasesRes.json();
+        const repo = await repoRes.json();
+
+        const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
+        let totalDownloads = 0;
+        for (const release of releases) {
+          for (const asset of release.assets || []) {
+            if (countedAssets.has(asset.name)) {
+              totalDownloads += asset.download_count;
+            }
+          }
+        }
+
+        const latestVersion = releases.length > 0 ? releases[0].tag_name : null;
+        const stars = repo.stargazers_count;
+
+        function formatNumber(n: number): string {
+          if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+          if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+          return n.toLocaleString();
+        }
+
+        function animateValue(el: HTMLElement, end: number, duration: number) {
+          const start = 0;
+          const startTime = performance.now();
+          const formatted = formatNumber(end);
+
+          function update(now: number) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = Math.floor(eased * end);
+            el.textContent = progress < 1 ? formatNumber(current) : formatted;
+            if (progress < 1) requestAnimationFrame(update);
+          }
+          requestAnimationFrame(update);
+        }
+
+        const dlEl = document.getElementById('statDownloads');
+        const verEl = document.getElementById('statVersion');
+        const starsEl = document.getElementById('statStars');
+
+        row.style.display = '';
+
+        if (dlEl) animateValue(dlEl, totalDownloads, 1200);
+        if (verEl && latestVersion) verEl.textContent = latestVersion;
+        if (starsEl) animateValue(starsEl, stars, 1200);
+
+      } catch {
+        // Silently fail — stats row stays hidden
+      }
+    })();
+  </script>
+
   <!-- Footer -->
   <footer>
     <div class="container">
@@ -415,6 +502,94 @@ import Demo from '../components/Demo.astro';
   .hero-links a {
     opacity: 0.6;
     font-size: 0.9rem;
+  }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    min-width: 100px;
+    transition: all 0.3s ease;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .stat-item {
+      background: rgba(74, 158, 255, 0.06);
+      border: 1px solid rgba(74, 158, 255, 0.15);
+    }
+
+    .stat-item:hover {
+      transform: translateY(-3px);
+      border-color: rgba(74, 158, 255, 0.4);
+      box-shadow:
+        0 0 20px rgba(74, 158, 255, 0.12),
+        0 0 40px rgba(74, 158, 255, 0.04),
+        inset 0 1px 0 rgba(74, 158, 255, 0.08);
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .stat-item {
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+    letter-spacing: -0.02em;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .stat-value {
+      color: #4a9eff;
+      text-shadow: 0 0 20px rgba(74, 158, 255, 0.4);
+    }
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.5;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  }
+
+  @media (max-width: 640px) {
+    .stats-row {
+      gap: 0.75rem;
+    }
+
+    .stat-item {
+      padding: 0.5rem 0.75rem;
+      min-width: 80px;
+    }
+
+    .stat-value {
+      font-size: 1.15rem;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+    }
   }
 
   .hero-image {

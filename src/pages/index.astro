@@ -9,7 +9,7 @@ import Demo from '../components/Demo.astro';
     <h1>G-Helper for Linux</h1>
     <p class="subtitle">Lightweight Control Tool for Asus Gaming Laptops on Linux</p>
     <div class="stats-row" id="statsRow" style="display:none;">
-      <div class="stat-item">
+      <div class="stat-item" id="statDownloadsItem" style="cursor: pointer;">
         <span class="stat-value" id="statDownloads">--</span>
         <span class="stat-label">Total Downloads</span>
       </div>
@@ -59,6 +59,15 @@ import Demo from '../components/Demo.astro';
       </a>
     </div>
   </section>
+
+  <!-- Downloads Modal -->
+  <div class="modal-overlay" id="downloadsModal" style="display: none;">
+    <div class="modal">
+      <button class="modal-close" id="modalClose">&times;</button>
+      <h2>Download Stats</h2>
+      <div class="modal-list" id="downloadsList"></div>
+    </div>
+  </div>
 
   <!-- About -->
   <section class="section">
@@ -302,13 +311,31 @@ import Demo from '../components/Demo.astro';
 
         const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
         let totalDownloads = 0;
+        const assetTotals: Record<string, number> = {};
+
         for (const release of releases) {
           for (const asset of release.assets || []) {
             if (countedAssets.has(asset.name)) {
               totalDownloads += asset.download_count;
+              assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
             }
           }
         }
+
+        // Group by package format
+        const formatNames: Record<string, string> = {
+          'ghelper': 'Native Binary',
+          'GHelper-x86_64.AppImage': 'AppImage',
+        };
+
+        const formatOrder = ['ghelper', 'GHelper-x86_64.AppImage'];
+        const groupedData = formatOrder
+          .filter((key) => assetTotals[key])
+          .map((key) => ({
+            name: formatNames[key] || key,
+            count: assetTotals[key],
+            percentage: totalDownloads > 0 ? Math.round((assetTotals[key] / totalDownloads) * 100) : 0,
+          }));
 
         const latestVersion = releases.length > 0 ? releases[0].tag_name : null;
         const stars = repo.stargazers_count;
@@ -320,20 +347,28 @@ import Demo from '../components/Demo.astro';
         }
 
         function animateValue(el: HTMLElement, end: number, duration: number) {
-          const start = 0;
           const startTime = performance.now();
           const formatted = formatNumber(end);
 
           function update(now: number) {
             const elapsed = now - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            // ease-out cubic
             const eased = 1 - Math.pow(1 - progress, 3);
             const current = Math.floor(eased * end);
             el.textContent = progress < 1 ? formatNumber(current) : formatted;
             if (progress < 1) requestAnimationFrame(update);
           }
           requestAnimationFrame(update);
+        }
+
+        function getFormatIcon(name: string): string {
+          if (name === 'Native Binary') {
+            return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+          }
+          if (name === 'AppImage') {
+            return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
+          }
+          return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
         }
 
         const dlEl = document.getElementById('statDownloads');
@@ -345,6 +380,72 @@ import Demo from '../components/Demo.astro';
         if (dlEl) animateValue(dlEl, totalDownloads, 1200);
         if (verEl && latestVersion) verEl.textContent = latestVersion;
         if (starsEl) animateValue(starsEl, stars, 1200);
+
+        // Modal functionality
+        const modal = document.getElementById('downloadsModal');
+        const modalClose = document.getElementById('modalClose');
+        const downloadsList = document.getElementById('downloadsList');
+        const downloadsItem = document.getElementById('statDownloadsItem');
+
+        if (downloadsItem && modal && modalClose && downloadsList) {
+          downloadsItem.addEventListener('click', () => {
+            const grandTotalHtml = `
+              <div class="modal-grand-total">
+                <div class="modal-grand-total-value" data-count="${totalDownloads}">0</div>
+                <div class="modal-grand-total-label">Total Downloads</div>
+              </div>
+            `;
+
+            const cardsHtml = groupedData
+              .map((group, idx) => `
+                <div class="modal-card" style="animation-delay: ${idx * 100}ms;">
+                  <div class="modal-card-header">
+                    <div class="modal-card-os">
+                      ${getFormatIcon(group.name)}
+                      <span>${group.name}</span>
+                    </div>
+                    <div class="modal-card-count" data-count="${group.count}">0</div>
+                  </div>
+                  <div class="modal-card-progress">
+                    <div class="modal-card-bar" data-percentage="${group.percentage}" style="width: 0%"></div>
+                  </div>
+                  <div class="modal-card-percentage">${group.percentage}% of all downloads</div>
+                </div>
+              `)
+              .join('');
+
+            downloadsList.innerHTML = grandTotalHtml + '<div class="modal-cards">' + cardsHtml + '</div>';
+            modal.style.display = 'flex';
+
+            // Animate grand total
+            const grandTotalEl = downloadsList.querySelector('.modal-grand-total-value') as HTMLElement;
+            if (grandTotalEl) animateValue(grandTotalEl, totalDownloads, 1000);
+
+            // Animate card counts
+            downloadsList.querySelectorAll('.modal-card-count').forEach((el) => {
+              const target = parseInt((el as HTMLElement).dataset.count || '0', 10);
+              animateValue(el as HTMLElement, target, 800);
+            });
+
+            // Animate progress bars
+            requestAnimationFrame(() => {
+              downloadsList.querySelectorAll('.modal-card-bar').forEach((el) => {
+                const pct = (el as HTMLElement).dataset.percentage || '0';
+                (el as HTMLElement).style.width = pct + '%';
+              });
+            });
+          });
+
+          modalClose.addEventListener('click', () => {
+            modal.style.display = 'none';
+          });
+
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.style.display = 'none';
+            }
+          });
+        }
 
       } catch {
         // Silently fail — stats row stays hidden
@@ -589,6 +690,329 @@ import Demo from '../components/Demo.astro';
 
     .stat-label {
       font-size: 0.65rem;
+    }
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: overlayFadeIn 0.3s ease-out;
+  }
+
+  @keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal {
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 480px;
+    width: 90%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    animation: modalFadeIn 0.3s ease-out;
+  }
+
+  @keyframes modalFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .modal h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.5rem;
+    text-align: center;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+    transition: color 0.2s;
+    z-index: 1;
+  }
+
+  .modal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 0.25rem;
+  }
+
+  @keyframes modalCardFadeIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* ── Dark mode modal ── */
+  @media (prefers-color-scheme: dark) {
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+    }
+
+    .modal {
+      background: linear-gradient(180deg, rgba(30, 30, 38, 0.98) 0%, rgba(17, 17, 17, 0.98) 100%);
+      border: 1px solid rgba(74, 158, 255, 0.4);
+      box-shadow:
+        0 0 60px rgba(74, 158, 255, 0.2),
+        0 0 100px rgba(74, 158, 255, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .modal::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 20px;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(74, 158, 255, 0.6), rgba(122, 191, 255, 0.3), rgba(74, 158, 255, 0.6));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .modal h2 {
+      color: #4a9eff;
+      text-shadow: 0 0 20px rgba(74, 158, 255, 0.4);
+    }
+
+    .modal-close {
+      color: #888;
+    }
+
+    .modal-close:hover {
+      color: #4a9eff;
+    }
+  }
+
+  /* ── Light mode modal ── */
+  @media (prefers-color-scheme: light) {
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(4px);
+    }
+
+    .modal {
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal h2 {
+      color: #2a6cb8;
+    }
+
+    .modal-close {
+      color: #999;
+    }
+
+    .modal-close:hover {
+      color: #2a6cb8;
+    }
+  }
+
+  /* ── Dynamic modal content (injected via JS, needs :global) ── */
+
+  /* Grand Total */
+  .modal-list :global(.modal-grand-total) {
+    text-align: center;
+    padding: 1.25rem 1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .modal-list :global(.modal-grand-total-value) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 2.75rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .modal-list :global(.modal-grand-total-label) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    opacity: 0.5;
+    margin-top: 0.35rem;
+  }
+
+  /* Cards Container */
+  .modal-list :global(.modal-cards) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Platform Card */
+  .modal-list :global(.modal-card) {
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    transition: all 0.3s ease;
+    animation: modalCardFadeIn 0.4s ease-out forwards;
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  /* Card Header */
+  .modal-list :global(.modal-card-header) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.65rem;
+  }
+
+  .modal-list :global(.modal-card-os) {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .modal-list :global(.modal-card-os svg) {
+    flex-shrink: 0;
+  }
+
+  .modal-list :global(.modal-card-count) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  /* Progress Bar */
+  .modal-list :global(.modal-card-progress) {
+    width: 100%;
+    height: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.4rem;
+  }
+
+  .modal-list :global(.modal-card-bar) {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Percentage Label */
+  .modal-list :global(.modal-card-percentage) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.65rem;
+    opacity: 0.45;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Dark mode dynamic content ── */
+  @media (prefers-color-scheme: dark) {
+    .modal-list :global(.modal-grand-total) {
+      border-bottom: 1px solid rgba(74, 158, 255, 0.15);
+    }
+
+    .modal-list :global(.modal-grand-total-value) {
+      color: #4a9eff;
+      text-shadow: 0 0 20px rgba(74, 158, 255, 0.35);
+    }
+
+    .modal-list :global(.modal-card) {
+      background: linear-gradient(135deg, rgba(74, 158, 255, 0.06) 0%, rgba(122, 191, 255, 0.03) 100%);
+      border: 1px solid rgba(74, 158, 255, 0.2);
+    }
+
+    .modal-list :global(.modal-card:hover) {
+      border-color: rgba(74, 158, 255, 0.45);
+      background: linear-gradient(135deg, rgba(74, 158, 255, 0.1) 0%, rgba(122, 191, 255, 0.05) 100%);
+      box-shadow:
+        0 4px 24px rgba(74, 158, 255, 0.12),
+        0 0 30px rgba(74, 158, 255, 0.06);
+    }
+
+    .modal-list :global(.modal-card-os) {
+      color: #e0e0e0;
+    }
+
+    .modal-list :global(.modal-card-count) {
+      color: #4a9eff;
+      text-shadow: 0 0 12px rgba(74, 158, 255, 0.3);
+    }
+
+    .modal-list :global(.modal-card-progress) {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .modal-list :global(.modal-card-bar) {
+      background: linear-gradient(90deg, rgba(74, 158, 255, 0.7), rgba(122, 191, 255, 0.7));
+      box-shadow: 0 0 6px rgba(74, 158, 255, 0.25);
+    }
+  }
+
+  /* ── Light mode dynamic content ── */
+  @media (prefers-color-scheme: light) {
+    .modal-list :global(.modal-grand-total) {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .modal-list :global(.modal-grand-total-value) {
+      color: #2a6cb8;
+    }
+
+    .modal-list :global(.modal-card) {
+      background: #f7f9fc;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .modal-list :global(.modal-card:hover) {
+      border-color: rgba(74, 158, 255, 0.4);
+      box-shadow: 0 4px 16px rgba(74, 158, 255, 0.12);
+    }
+
+    .modal-list :global(.modal-card-os) {
+      color: #1a1a1a;
+    }
+
+    .modal-list :global(.modal-card-count) {
+      color: #2a6cb8;
+    }
+
+    .modal-list :global(.modal-card-progress) {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .modal-list :global(.modal-card-bar) {
+      background: linear-gradient(90deg, #4a9eff, #7abfff);
     }
   }
 

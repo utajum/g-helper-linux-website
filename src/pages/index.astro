@@ -1,6 +1,86 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Demo from '../components/Demo.astro';
+
+// ── Server-side GitHub data fetching ──
+interface FormatGroup {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+let totalDownloads = 0;
+let latestVersion: string | null = null;
+let stars = 0;
+let groupedData: FormatGroup[] = [];
+let fetchOk = false;
+
+try {
+  const [releasesRes, repoRes] = await Promise.all([
+    fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    }),
+    fetch('https://api.github.com/repos/utajum/g-helper-linux', {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    }),
+  ]);
+
+  if (releasesRes.ok && repoRes.ok) {
+    const releases = await releasesRes.json();
+    const repo = await repoRes.json();
+
+    const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
+    const assetTotals: Record<string, number> = {};
+
+    for (const release of releases) {
+      for (const asset of (release as any).assets || []) {
+        if (countedAssets.has(asset.name)) {
+          totalDownloads += asset.download_count;
+          assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
+        }
+      }
+    }
+
+    const formatNames: Record<string, string> = {
+      'ghelper': 'Native Binary',
+      'GHelper-x86_64.AppImage': 'AppImage',
+    };
+
+    const formatOrder = ['ghelper', 'GHelper-x86_64.AppImage'];
+    groupedData = formatOrder
+      .filter((key) => assetTotals[key])
+      .map((key) => ({
+        name: formatNames[key] || key,
+        count: assetTotals[key],
+        percentage: totalDownloads > 0 ? Math.round((assetTotals[key] / totalDownloads) * 100) : 0,
+      }));
+
+    latestVersion = releases.length > 0 ? releases[0].tag_name : null;
+    stars = repo.stargazers_count;
+    fetchOk = true;
+  }
+} catch {
+  // Silently fail — stats row will be hidden via client JS
+}
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return n.toLocaleString();
+}
+
+function getFormatIcon(name: string): string {
+  if (name === 'Native Binary') {
+    return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+  }
+  if (name === 'AppImage') {
+    return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
+  }
+  return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+}
+
+// CDN cache: 5 minutes
+Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 ---
 
 <Layout>
@@ -8,20 +88,22 @@ import Demo from '../components/Demo.astro';
   <section class="hero">
     <h1>G-Helper for Linux</h1>
     <p class="subtitle">Lightweight Control Tool for Asus Gaming Laptops on Linux</p>
-    <div class="stats-row" id="statsRow" style="display:none;">
-      <div class="stat-item" id="statDownloadsItem" style="cursor: pointer;">
-        <span class="stat-value" id="statDownloads">--</span>
-        <span class="stat-label">Total Downloads</span>
+    {fetchOk && (
+      <div class="stats-row" id="statsRow">
+        <div class="stat-item" id="statDownloadsItem" style="cursor: pointer;">
+          <span class="stat-value" id="statDownloads" data-count={totalDownloads}>{formatNumber(totalDownloads)}</span>
+          <span class="stat-label">Total Downloads</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statVersion">{latestVersion || '--'}</span>
+          <span class="stat-label">Latest Version</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statStars" data-count={stars}>{formatNumber(stars)}</span>
+          <span class="stat-label">Github Stars</span>
+        </div>
       </div>
-      <div class="stat-item">
-        <span class="stat-value" id="statVersion">--</span>
-        <span class="stat-label">Latest Version</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" id="statStars">--</span>
-        <span class="stat-label">Github Stars</span>
-      </div>
-    </div>
+    )}
     <div class="hero-buttons">
       <a href="https://github.com/utajum/g-helper-linux/releases" class="btn btn-primary" target="_blank" rel="noopener">
         Download
@@ -61,13 +143,37 @@ import Demo from '../components/Demo.astro';
   </section>
 
   <!-- Downloads Modal -->
-  <div class="modal-overlay" id="downloadsModal" style="display: none;">
-    <div class="modal">
-      <button class="modal-close" id="modalClose">&times;</button>
-      <h2>Download Stats</h2>
-      <div class="modal-list" id="downloadsList"></div>
+  {fetchOk && (
+    <div class="modal-overlay" id="downloadsModal" style="display: none;">
+      <div class="modal">
+        <button class="modal-close" id="modalClose">&times;</button>
+        <h2>Download Stats</h2>
+        <div class="modal-list" id="downloadsList">
+          <div class="modal-grand-total">
+            <div class="modal-grand-total-value" data-count={totalDownloads}>0</div>
+            <div class="modal-grand-total-label">Total Downloads</div>
+          </div>
+          <div class="modal-cards">
+            {groupedData.map((group, idx) => (
+              <div class="modal-card" style={`animation-delay: ${idx * 100}ms;`}>
+                <div class="modal-card-header">
+                  <div class="modal-card-os">
+                    <Fragment set:html={getFormatIcon(group.name)} />
+                    <span>{group.name}</span>
+                  </div>
+                  <div class="modal-card-count" data-count={group.count}>0</div>
+                </div>
+                <div class="modal-card-progress">
+                  <div class="modal-card-bar" data-percentage={group.percentage} style="width: 0%"></div>
+                </div>
+                <div class="modal-card-percentage">{group.percentage}% of all downloads</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
+  )}
 
   <!-- About -->
   <section class="section">
@@ -289,168 +395,88 @@ import Demo from '../components/Demo.astro';
   </script>
 
   <script>
-    // ── GitHub Stats ──
-    (async () => {
-      const row = document.getElementById('statsRow');
-      if (!row) return;
+    // ── Stats animations + modal toggle ──
+    function formatNumber(n: number): string {
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
+      return n.toLocaleString();
+    }
 
-      try {
-        const [releasesRes, repoRes] = await Promise.all([
-          fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', {
-            headers: { Accept: 'application/vnd.github.v3+json' },
-          }),
-          fetch('https://api.github.com/repos/utajum/g-helper-linux', {
-            headers: { Accept: 'application/vnd.github.v3+json' },
-          }),
-        ]);
+    function animateValue(el: HTMLElement, end: number, duration: number) {
+      const startTime = performance.now();
+      const formatted = formatNumber(end);
 
-        if (!releasesRes.ok || !repoRes.ok) return;
-
-        const releases = await releasesRes.json();
-        const repo = await repoRes.json();
-
-        const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
-        let totalDownloads = 0;
-        const assetTotals: Record<string, number> = {};
-
-        for (const release of releases) {
-          for (const asset of release.assets || []) {
-            if (countedAssets.has(asset.name)) {
-              totalDownloads += asset.download_count;
-              assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
-            }
-          }
-        }
-
-        // Group by package format
-        const formatNames: Record<string, string> = {
-          'ghelper': 'Native Binary',
-          'GHelper-x86_64.AppImage': 'AppImage',
-        };
-
-        const formatOrder = ['ghelper', 'GHelper-x86_64.AppImage'];
-        const groupedData = formatOrder
-          .filter((key) => assetTotals[key])
-          .map((key) => ({
-            name: formatNames[key] || key,
-            count: assetTotals[key],
-            percentage: totalDownloads > 0 ? Math.round((assetTotals[key] / totalDownloads) * 100) : 0,
-          }));
-
-        const latestVersion = releases.length > 0 ? releases[0].tag_name : null;
-        const stars = repo.stargazers_count;
-
-        function formatNumber(n: number): string {
-          if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-          if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
-          return n.toLocaleString();
-        }
-
-        function animateValue(el: HTMLElement, end: number, duration: number) {
-          const startTime = performance.now();
-          const formatted = formatNumber(end);
-
-          function update(now: number) {
-            const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            const current = Math.floor(eased * end);
-            el.textContent = progress < 1 ? formatNumber(current) : formatted;
-            if (progress < 1) requestAnimationFrame(update);
-          }
-          requestAnimationFrame(update);
-        }
-
-        function getFormatIcon(name: string): string {
-          if (name === 'Native Binary') {
-            return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
-          }
-          if (name === 'AppImage') {
-            return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>';
-          }
-          return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-        }
-
-        const dlEl = document.getElementById('statDownloads');
-        const verEl = document.getElementById('statVersion');
-        const starsEl = document.getElementById('statStars');
-
-        row.style.display = '';
-
-        if (dlEl) animateValue(dlEl, totalDownloads, 1200);
-        if (verEl && latestVersion) verEl.textContent = latestVersion;
-        if (starsEl) animateValue(starsEl, stars, 1200);
-
-        // Modal functionality
-        const modal = document.getElementById('downloadsModal');
-        const modalClose = document.getElementById('modalClose');
-        const downloadsList = document.getElementById('downloadsList');
-        const downloadsItem = document.getElementById('statDownloadsItem');
-
-        if (downloadsItem && modal && modalClose && downloadsList) {
-          downloadsItem.addEventListener('click', () => {
-            const grandTotalHtml = `
-              <div class="modal-grand-total">
-                <div class="modal-grand-total-value" data-count="${totalDownloads}">0</div>
-                <div class="modal-grand-total-label">Total Downloads</div>
-              </div>
-            `;
-
-            const cardsHtml = groupedData
-              .map((group, idx) => `
-                <div class="modal-card" style="animation-delay: ${idx * 100}ms;">
-                  <div class="modal-card-header">
-                    <div class="modal-card-os">
-                      ${getFormatIcon(group.name)}
-                      <span>${group.name}</span>
-                    </div>
-                    <div class="modal-card-count" data-count="${group.count}">0</div>
-                  </div>
-                  <div class="modal-card-progress">
-                    <div class="modal-card-bar" data-percentage="${group.percentage}" style="width: 0%"></div>
-                  </div>
-                  <div class="modal-card-percentage">${group.percentage}% of all downloads</div>
-                </div>
-              `)
-              .join('');
-
-            downloadsList.innerHTML = grandTotalHtml + '<div class="modal-cards">' + cardsHtml + '</div>';
-            modal.style.display = 'flex';
-
-            // Animate grand total
-            const grandTotalEl = downloadsList.querySelector('.modal-grand-total-value') as HTMLElement;
-            if (grandTotalEl) animateValue(grandTotalEl, totalDownloads, 1000);
-
-            // Animate card counts
-            downloadsList.querySelectorAll('.modal-card-count').forEach((el) => {
-              const target = parseInt((el as HTMLElement).dataset.count || '0', 10);
-              animateValue(el as HTMLElement, target, 800);
-            });
-
-            // Animate progress bars
-            requestAnimationFrame(() => {
-              downloadsList.querySelectorAll('.modal-card-bar').forEach((el) => {
-                const pct = (el as HTMLElement).dataset.percentage || '0';
-                (el as HTMLElement).style.width = pct + '%';
-              });
-            });
-          });
-
-          modalClose.addEventListener('click', () => {
-            modal.style.display = 'none';
-          });
-
-          modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-              modal.style.display = 'none';
-            }
-          });
-        }
-
-      } catch {
-        // Silently fail — stats row stays hidden
+      function update(now: number) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = Math.floor(eased * end);
+        el.textContent = progress < 1 ? formatNumber(current) : formatted;
+        if (progress < 1) requestAnimationFrame(update);
       }
-    })();
+      requestAnimationFrame(update);
+    }
+
+    // Animate stats row counters on load
+    const dlEl = document.getElementById('statDownloads');
+    const starsEl = document.getElementById('statStars');
+
+    if (dlEl?.dataset.count) animateValue(dlEl, parseInt(dlEl.dataset.count, 10), 1200);
+    if (starsEl?.dataset.count) animateValue(starsEl, parseInt(starsEl.dataset.count, 10), 1200);
+
+    // Modal open/close
+    const modal = document.getElementById('downloadsModal');
+    const modalClose = document.getElementById('modalClose');
+    const downloadsList = document.getElementById('downloadsList');
+    const downloadsItem = document.getElementById('statDownloadsItem');
+
+    if (downloadsItem && modal && modalClose && downloadsList) {
+      downloadsItem.addEventListener('click', () => {
+        modal.style.display = 'flex';
+
+        // Reset and animate counts each time modal opens
+        const grandTotalEl = downloadsList.querySelector('.modal-grand-total-value') as HTMLElement;
+        if (grandTotalEl?.dataset.count) {
+          grandTotalEl.textContent = '0';
+          animateValue(grandTotalEl, parseInt(grandTotalEl.dataset.count, 10), 1000);
+        }
+
+        downloadsList.querySelectorAll('.modal-card-count').forEach((el) => {
+          const target = parseInt((el as HTMLElement).dataset.count || '0', 10);
+          (el as HTMLElement).textContent = '0';
+          animateValue(el as HTMLElement, target, 800);
+        });
+
+        // Reset and animate progress bars
+        downloadsList.querySelectorAll('.modal-card-bar').forEach((el) => {
+          (el as HTMLElement).style.width = '0%';
+        });
+        requestAnimationFrame(() => {
+          downloadsList.querySelectorAll('.modal-card-bar').forEach((el) => {
+            const pct = (el as HTMLElement).dataset.percentage || '0';
+            (el as HTMLElement).style.width = pct + '%';
+          });
+        });
+
+        // Reset card animations
+        downloadsList.querySelectorAll('.modal-card').forEach((el) => {
+          const card = el as HTMLElement;
+          card.style.animation = 'none';
+          card.offsetHeight; // force reflow
+          card.style.animation = '';
+        });
+      });
+
+      modalClose.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+    }
   </script>
 
   <!-- Footer -->

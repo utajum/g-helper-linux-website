@@ -7,7 +7,7 @@ import netlify from "@astrojs/netlify";
 // https://astro.build/config
 export default defineConfig({
   site: "https://g-helper-linux.elevatech.xyz",
-  output: "static",
+  output: "server",
   integrations: [sitemap()],
 
   vite: {

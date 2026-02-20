@@ -15,14 +15,14 @@ let stars = 0;
 let groupedData: FormatGroup[] = [];
 let fetchOk = false;
 
+const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
+const ghToken = import.meta.env.GITHUB_TOKEN;
+if (ghToken) ghHeaders.Authorization = `token ${ghToken}`;
+
 try {
   const [releasesRes, repoRes] = await Promise.all([
-    fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', {
-      headers: { Accept: 'application/vnd.github.v3+json' },
-    }),
-    fetch('https://api.github.com/repos/utajum/g-helper-linux', {
-      headers: { Accept: 'application/vnd.github.v3+json' },
-    }),
+    fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', { headers: ghHeaders }),
+    fetch('https://api.github.com/repos/utajum/g-helper-linux', { headers: ghHeaders }),
   ]);
 
   if (releasesRes.ok && repoRes.ok) {

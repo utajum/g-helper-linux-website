@@ -212,8 +212,8 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           >
             <div class="chart-header">
               <div class="chart-toolbar">
-                <button class="chart-tool" id="chartZoomIn" aria-label="Zoom in">+</button>
                 <button class="chart-tool" id="chartZoomOut" aria-label="Zoom out">&minus;</button>
+                <button class="chart-tool" id="chartZoomIn" aria-label="Zoom in">+</button>
                 <button class="chart-tool" id="chartReset" aria-label="Reset zoom">&#8635;</button>
               </div>
               <div class="chart-legend">
@@ -504,6 +504,16 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       // @ts-ignore - ApexCharts is loaded from CDN
       const ApexCharts = (window as any).ApexCharts;
 
+      // Calculate initial zoom range
+      const defaultView = 15;
+      if (totalData.length > defaultView) {
+        chartCurrentMin = totalData.length - defaultView;
+        chartCurrentMax = totalData.length - 1;
+      } else {
+        chartCurrentMin = 0;
+        chartCurrentMax = totalData.length - 1;
+      }
+
       const options = {
         chart: {
           type: 'area',
@@ -552,7 +562,9 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           tooltip: { enabled: true },
           crosshairs: {
             stroke: { color: '#4a9eff', width: 1, dashArray: 3 }
-          }
+          },
+          min: chartCurrentMin,
+          max: chartCurrentMax
         },
         yaxis: {
           labels: {
@@ -583,23 +595,8 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       chartInstance.render().then(() => {
         // Add loaded class for fade-in effect
         chartEl.classList.add('loaded');
-        
-        // Auto-zoom to latest 15 releases
-        if (totalData.length > 15) {
-          chartCurrentMin = totalData.length - 15;
-          chartCurrentMax = totalData.length - 1;
-          chartInstance?.updateOptions({
-            xaxis: {
-              min: chartCurrentMin,
-              max: chartCurrentMax
-            }
-          });
-        } else {
-          chartCurrentMin = 0;
-          chartCurrentMax = totalData.length - 1;
-        }
 
-        // Scroll the container to the far right
+        // Scroll the container to the far right (latest releases)
         const scrollContainer = document.getElementById('chartScrollContainer');
         if (scrollContainer) {
           scrollContainer.scrollLeft = scrollContainer.scrollWidth;

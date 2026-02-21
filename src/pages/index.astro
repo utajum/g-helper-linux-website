@@ -43,15 +43,15 @@ try {
     const assetTotals: Record<string, number> = {};
 
     // Build chart data: each release as a point
-    const releaseData: Record<string, { binary: number; appimage: number; date: string }> = {};
+    const releaseData: Record<string, { binary: number; appimage: number; date: string; version: string }> = {};
 
     for (const release of releases) {
       const releaseDate = new Date((release as any).created_at);
-      const dateStr = releaseDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const versionStr = (release as any).tag_name;
 
-      // Initialize or get existing data for this release date
-      if (!releaseData[dateStr]) {
-        releaseData[dateStr] = { binary: 0, appimage: 0, date: dateStr };
+      // Initialize or get existing data for this release version
+      if (!releaseData[versionStr]) {
+        releaseData[versionStr] = { binary: 0, appimage: 0, date: releaseDate.toISOString(), version: versionStr };
       }
 
       for (const asset of (release as any).assets || []) {
@@ -61,34 +61,34 @@ try {
 
           // Add to chart data
           if (asset.name === 'ghelper') {
-            releaseData[dateStr].binary += asset.download_count;
+            releaseData[versionStr].binary += asset.download_count;
           } else if (asset.name === 'GHelper-x86_64.AppImage') {
-            releaseData[dateStr].appimage += asset.download_count;
+            releaseData[versionStr].appimage += asset.download_count;
           }
         }
       }
     }
 
     // Convert to chart data arrays, sorted by date
-    const sortedDates = Object.keys(releaseData).sort((a, b) => {
+    const sortedVersions = Object.keys(releaseData).sort((a, b) => {
       const dateA = new Date(releaseData[a].date);
       const dateB = new Date(releaseData[b].date);
       return dateA.getTime() - dateB.getTime();
     });
 
-    chartBinaryData = sortedDates.map(date => ({
-      x: releaseData[date].date,
-      y: releaseData[date].binary
+    chartBinaryData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].binary
     }));
 
-    chartAppimageData = sortedDates.map(date => ({
-      x: releaseData[date].date,
-      y: releaseData[date].appimage
+    chartAppimageData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].appimage
     }));
 
-    chartTotalData = sortedDates.map(date => ({
-      x: releaseData[date].date,
-      y: releaseData[date].binary + releaseData[date].appimage
+    chartTotalData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].binary + releaseData[version].appimage
     }));
 
     const formatNames: Record<string, string> = {

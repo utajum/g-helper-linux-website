@@ -576,6 +576,11 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
         legend: { show: false },
         tooltip: {
           theme: isDark ? 'dark' : 'light',
+          fixed: {
+            enabled: true,
+            position: 'topRight',
+            offsetY: -10
+          },
           x: { show: true },
           y: {
             formatter: (val: number) => val.toLocaleString()
@@ -628,7 +633,12 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       document.getElementById('chartZoomOut')?.addEventListener('click', () => {
         if (!chartInstance) return;
         currentRange = Math.min(dataLength, currentRange + 3);
-        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        if (currentRange >= dataLength) {
+          // Show all — remove range constraint
+          chartInstance.updateOptions({ xaxis: { range: undefined } });
+        } else {
+          chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        }
         setTimeout(() => {
           const sc = document.getElementById('chartScrollContainer');
           if (sc) sc.scrollLeft = sc.scrollWidth;
@@ -1159,7 +1169,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   /* Chart Scroll Container */
   .modal-chart-container {
     overflow-x: scroll;
-    overflow-y: hidden;
+    overflow-y: visible;
     min-height: 230px;
   }
 

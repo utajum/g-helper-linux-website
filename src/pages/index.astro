@@ -9,11 +9,21 @@ interface FormatGroup {
   percentage: number;
 }
 
+interface ChartDataPoint {
+  x: string;
+  y: number;
+}
+
 let totalDownloads = 0;
 let latestVersion: string | null = null;
 let stars = 0;
 let groupedData: FormatGroup[] = [];
 let fetchOk = false;
+
+// Chart data: each release is a point with date and download counts
+let chartBinaryData: ChartDataPoint[] = [];
+let chartAppimageData: ChartDataPoint[] = [];
+let chartTotalData: ChartDataPoint[] = [];
 
 const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
 const ghToken = import.meta.env.GITHUB_TOKEN;
@@ -32,14 +42,54 @@ try {
     const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
     const assetTotals: Record<string, number> = {};
 
+    // Build chart data: each release as a point
+    const releaseData: Record<string, { binary: number; appimage: number; date: string }> = {};
+
     for (const release of releases) {
+      const releaseDate = new Date((release as any).created_at);
+      const dateStr = releaseDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+      // Initialize or get existing data for this release date
+      if (!releaseData[dateStr]) {
+        releaseData[dateStr] = { binary: 0, appimage: 0, date: dateStr };
+      }
+
       for (const asset of (release as any).assets || []) {
         if (countedAssets.has(asset.name)) {
           totalDownloads += asset.download_count;
           assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
+
+          // Add to chart data
+          if (asset.name === 'ghelper') {
+            releaseData[dateStr].binary += asset.download_count;
+          } else if (asset.name === 'GHelper-x86_64.AppImage') {
+            releaseData[dateStr].appimage += asset.download_count;
+          }
         }
       }
     }
+
+    // Convert to chart data arrays, sorted by date
+    const sortedDates = Object.keys(releaseData).sort((a, b) => {
+      const dateA = new Date(releaseData[a].date);
+      const dateB = new Date(releaseData[b].date);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    chartBinaryData = sortedDates.map(date => ({
+      x: releaseData[date].date,
+      y: releaseData[date].binary
+    }));
+
+    chartAppimageData = sortedDates.map(date => ({
+      x: releaseData[date].date,
+      y: releaseData[date].appimage
+    }));
+
+    chartTotalData = sortedDates.map(date => ({
+      x: releaseData[date].date,
+      y: releaseData[date].binary + releaseData[date].appimage
+    }));
 
     const formatNames: Record<string, string> = {
       'ghelper': 'Native Binary',
@@ -152,6 +202,15 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           <div class="modal-grand-total">
             <div class="modal-grand-total-value" data-count={totalDownloads}>0</div>
             <div class="modal-grand-total-label">Total Downloads</div>
+          </div>
+          <!-- Download Growth Chart -->
+          <div 
+            class="modal-chart-container" 
+            data-binary={JSON.stringify(chartBinaryData)} 
+            data-appimage={JSON.stringify(chartAppimageData)} 
+            data-total={JSON.stringify(chartTotalData)}
+          >
+            <div id="downloadsChart"></div>
           </div>
           <div class="modal-cards">
             {groupedData.map((group, idx) => (
@@ -395,6 +454,142 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   </script>
 
   <script>
+    // ── Download Chart (load ApexCharts from CDN) ──
+    let chartInstance: any = null;
+
+    function initDownloadsChart() {
+      const chartEl = document.getElementById('downloadsChart');
+      if (!chartEl) return;
+
+      // Get chart data from server-rendered data attributes
+      const chartContainer = chartEl.closest('.modal-chart-container') as HTMLElement;
+      const binaryData = chartContainer?.dataset.binary ? JSON.parse(chartContainer.dataset.binary) : [];
+      const appimageData = chartContainer?.dataset.appimage ? JSON.parse(chartContainer.dataset.appimage) : [];
+      const totalData = chartContainer?.dataset.total ? JSON.parse(chartContainer.dataset.total) : [];
+
+      // Check if we're in dark mode
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+      const textColor = isDark ? '#888' : '#666';
+      const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+      // Destroy existing chart if any
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      // @ts-ignore - ApexCharts is loaded from CDN
+      const ApexCharts = (window as any).ApexCharts;
+
+      const options = {
+        chart: {
+          type: 'area',
+          height: 220,
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          background: 'transparent',
+          // @ts-ignore - easing is valid in ApexCharts
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 800,
+            animateGradually: {
+              enabled: true,
+              delay: 150
+            }
+          },
+          toolbar: { show: false },
+          zoom: { enabled: false }
+        },
+        series: [
+          { name: 'Total', data: totalData },
+          { name: 'Binary', data: binaryData },
+          { name: 'AppImage', data: appimageData }
+        ],
+        colors: ['#ffdd00', '#4a9eff', '#28c840'],
+        fill: {
+          type: 'gradient',
+          gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.4,
+            opacityTo: 0.05,
+            stops: [0, 90, 100]
+          }
+        },
+        stroke: {
+          curve: 'smooth',
+          width: 3
+        },
+        dataLabels: { enabled: false },
+        xaxis: {
+          type: 'category',
+          labels: {
+            style: { colors: textColor, fontSize: '10px' },
+            rotate: -45,
+            rotateAlways: false,
+            hideOverlappingLabels: true
+          },
+          axisBorder: { show: false },
+          axisTicks: { show: false },
+          crosshairs: {
+            stroke: { color: '#4a9eff', width: 1, dashArray: 3 }
+          }
+        },
+        yaxis: {
+          labels: {
+            style: { colors: textColor, fontSize: '10px' },
+            formatter: (val: number) => {
+              if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
+              return val.toString();
+            }
+          }
+        },
+        grid: {
+          borderColor: gridColor,
+          strokeDashArray: 2,
+          xaxis: { lines: { show: false } }
+        },
+        legend: {
+          position: 'top',
+          horizontalAlign: 'right',
+          fontSize: '11px',
+          labels: { colors: textColor },
+          // @ts-ignore - radius is valid in ApexCharts markers
+          markers: { size: 8, radius: 4 },
+          itemMargin: { horizontal: 8, vertical: 0 }
+        },
+        tooltip: {
+          theme: isDark ? 'dark' : 'light',
+          x: { show: true },
+          y: {
+            formatter: (val: number) => val.toLocaleString()
+          },
+          style: { fontSize: '11px' }
+        }
+      };
+
+      chartInstance = new ApexCharts(chartEl, options);
+      chartInstance.render();
+    }
+
+    // Load ApexCharts from CDN
+    function loadApexCharts() {
+      return new Promise<void>((resolve) => {
+        if ((window as any).ApexCharts) {
+          resolve();
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+        script.onload = () => resolve();
+        document.head.appendChild(script);
+      });
+    }
+
+    // Make function globally available
+    (window as any).initDownloadsChart = initDownloadsChart;
+  </script>
+
+  <script>
     // ── Stats animations + modal toggle ──
     function formatNumber(n: number): string {
       if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
@@ -465,6 +660,9 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           card.offsetHeight; // force reflow
           card.style.animation = '';
         });
+
+        // Initialize/Update chart when modal opens
+        (window as any).initDownloadsChart();
       });
 
       modalClose.addEventListener('click', () => {
@@ -789,6 +987,17 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     flex: 1;
     min-height: 0;
     padding-right: 0.25rem;
+  }
+
+  /* Chart Container */
+  .modal-chart-container {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(74, 158, 255, 0.1);
+    margin-bottom: 0.5rem;
+  }
+
+  .modal-chart-container #downloadsChart {
+    width: 100%;
   }
 
   @keyframes modalCardFadeIn {

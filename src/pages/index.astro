@@ -36,7 +36,7 @@ try {
   ]);
 
   if (releasesRes.ok && repoRes.ok) {
-    const releases = await releasesRes.json();
+    const releases = (await releasesRes.json()).slice(0, 30);
     const repo = await repoRes.json();
 
     const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);

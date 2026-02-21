@@ -205,12 +205,26 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           </div>
           <!-- Download Growth Chart -->
           <div 
-            class="modal-chart-container" 
+            class="modal-chart-wrapper" 
             data-binary={JSON.stringify(chartBinaryData)} 
             data-appimage={JSON.stringify(chartAppimageData)} 
             data-total={JSON.stringify(chartTotalData)}
           >
-            <div id="downloadsChart"></div>
+            <div class="chart-header">
+              <div class="chart-toolbar">
+                <button class="chart-tool" id="chartZoomIn" aria-label="Zoom in">+</button>
+                <button class="chart-tool" id="chartZoomOut" aria-label="Zoom out">&minus;</button>
+                <button class="chart-tool" id="chartReset" aria-label="Reset zoom">&#8635;</button>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#ffdd00"></span>Total</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#4a9eff"></span>Binary</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#28c840"></span>AppImage</span>
+              </div>
+            </div>
+            <div class="modal-chart-container" id="chartScrollContainer">
+              <div id="downloadsChart"></div>
+            </div>
           </div>
           <div class="modal-cards">
             {groupedData.map((group, idx) => (
@@ -456,16 +470,21 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   <script>
     // ── Download Chart (load ApexCharts from CDN) ──
     let chartInstance: any = null;
+    let chartTotalLength = 0;
+    let chartCurrentMin = 0;
+    let chartCurrentMax = 0;
 
     function initDownloadsChart() {
       const chartEl = document.getElementById('downloadsChart');
       if (!chartEl) return;
 
       // Get chart data from server-rendered data attributes
-      const chartContainer = chartEl.closest('.modal-chart-container') as HTMLElement;
-      const binaryData = chartContainer?.dataset.binary ? JSON.parse(chartContainer.dataset.binary) : [];
-      const appimageData = chartContainer?.dataset.appimage ? JSON.parse(chartContainer.dataset.appimage) : [];
-      const totalData = chartContainer?.dataset.total ? JSON.parse(chartContainer.dataset.total) : [];
+      const chartWrapper = chartEl.closest('.modal-chart-wrapper') as HTMLElement;
+      const binaryData = chartWrapper?.dataset.binary ? JSON.parse(chartWrapper.dataset.binary) : [];
+      const appimageData = chartWrapper?.dataset.appimage ? JSON.parse(chartWrapper.dataset.appimage) : [];
+      const totalData = chartWrapper?.dataset.total ? JSON.parse(chartWrapper.dataset.total) : [];
+
+      chartTotalLength = totalData.length;
 
       // Set minimum width for chart to enable horizontal scrolling (40px per data point)
       const minWidth = Math.max(totalData.length * 40, 400);
@@ -501,20 +520,8 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
               delay: 150
             }
           },
-          toolbar: { 
-            show: true,
-            offset: { x: 10, y: 10 },
-            tools: { 
-              pan: true, 
-              zoom: true, 
-              zoomin: true, 
-              zoomout: true,
-              reset: true 
-            },
-            autoSelected: 'zoom',
-            floating: true
-          },
-          zoom: { enabled: true },
+          toolbar: { show: false },
+          zoom: { enabled: false },
           scrollable: { enabled: true, autoScaleYaxis: true }
         },
         series: [
@@ -561,16 +568,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           strokeDashArray: 2,
           xaxis: { lines: { show: false } }
         },
-        legend: {
-          position: 'top',
-          horizontalAlign: 'right',
-          floating: true,
-          fontSize: '11px',
-          labels: { colors: textColor },
-          // @ts-ignore - radius is valid in ApexCharts markers
-          markers: { size: 8, radius: 4 },
-          itemMargin: { horizontal: 8, vertical: 0 }
-        },
+        legend: { show: false },
         tooltip: {
           theme: isDark ? 'dark' : 'light',
           x: { show: true },
@@ -588,12 +586,65 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
         
         // Auto-zoom to latest 15 releases
         if (totalData.length > 15) {
+          chartCurrentMin = totalData.length - 15;
+          chartCurrentMax = totalData.length - 1;
           chartInstance?.updateOptions({
             xaxis: {
-              min: totalData.length - 15,
-              max: totalData.length - 1
+              min: chartCurrentMin,
+              max: chartCurrentMax
             }
           });
+        } else {
+          chartCurrentMin = 0;
+          chartCurrentMax = totalData.length - 1;
+        }
+
+        // Scroll the container to the far right
+        const scrollContainer = document.getElementById('chartScrollContainer');
+        if (scrollContainer) {
+          scrollContainer.scrollLeft = scrollContainer.scrollWidth;
+        }
+      });
+
+      // Wire up custom zoom buttons
+      setupChartControls(totalData.length);
+    }
+
+    function setupChartControls(dataLength: number) {
+      const zoomInBtn = document.getElementById('chartZoomIn');
+      const zoomOutBtn = document.getElementById('chartZoomOut');
+      const resetBtn = document.getElementById('chartReset');
+
+      zoomInBtn?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        const range = chartCurrentMax - chartCurrentMin;
+        if (range <= 4) return; // Don't zoom in too far
+        chartCurrentMin = Math.min(chartCurrentMin + 2, chartCurrentMax - 4);
+        chartCurrentMax = Math.max(chartCurrentMax - 2, chartCurrentMin + 4);
+        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
+      });
+
+      zoomOutBtn?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        chartCurrentMin = Math.max(0, chartCurrentMin - 2);
+        chartCurrentMax = Math.min(dataLength - 1, chartCurrentMax + 2);
+        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
+      });
+
+      resetBtn?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        if (dataLength > 15) {
+          chartCurrentMin = dataLength - 15;
+          chartCurrentMax = dataLength - 1;
+        } else {
+          chartCurrentMin = 0;
+          chartCurrentMax = dataLength - 1;
+        }
+        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
+        // Scroll back to right
+        const scrollContainer = document.getElementById('chartScrollContainer');
+        if (scrollContainer) {
+          scrollContainer.scrollLeft = scrollContainer.scrollWidth;
         }
       });
     }
@@ -1016,13 +1067,102 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     padding-right: 0.25rem;
   }
 
-  /* Chart Container */
+  /* Chart Wrapper */
+  .modal-chart-wrapper {
+    border-bottom: 1px solid rgba(74, 158, 255, 0.1);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Chart Header — toolbar left, legend right */
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0.25rem 0.5rem;
+  }
+
+  .chart-toolbar {
+    display: flex;
+    gap: 4px;
+  }
+
+  .chart-tool {
+    background: rgba(74, 158, 255, 0.08);
+    border: 1px solid rgba(74, 158, 255, 0.2);
+    color: #4a9eff;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .chart-tool:hover {
+    background: rgba(74, 158, 255, 0.18);
+    border-color: rgba(74, 158, 255, 0.5);
+    box-shadow: 0 0 10px rgba(74, 158, 255, 0.25);
+    transform: translateY(-1px);
+  }
+
+  .chart-tool:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 10px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.02em;
+    opacity: 0.8;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .chart-tool {
+      background: rgba(42, 108, 184, 0.06);
+      border-color: rgba(42, 108, 184, 0.2);
+      color: #2a6cb8;
+    }
+
+    .chart-tool:hover {
+      background: rgba(42, 108, 184, 0.12);
+      border-color: rgba(42, 108, 184, 0.4);
+      box-shadow: 0 0 8px rgba(42, 108, 184, 0.15);
+    }
+
+    .chart-legend {
+      color: #666;
+    }
+  }
+
+  /* Chart Scroll Container */
   .modal-chart-container {
     overflow-x: scroll;
     overflow-y: hidden;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(74, 158, 255, 0.1);
-    margin-bottom: 0.5rem;
     min-height: 230px;
   }
 
@@ -1036,10 +1176,10 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     opacity: 1;
   }
 
-  /* Custom scrollbar - always visible */
+  /* Custom scrollbar - gaming theme (always visible) */
   .modal-chart-container {
     scrollbar-width: thin;
-    scrollbar-color: #4a9eff transparent;
+    scrollbar-color: #4a9eff rgba(74, 158, 255, 0.05);
   }
 
   .modal-chart-container::-webkit-scrollbar {
@@ -1060,6 +1200,21 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
 
   .modal-chart-container::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(90deg, #7abfff, #4a9eff);
+  }
+
+  @media (prefers-color-scheme: light) {
+    .modal-chart-container {
+      scrollbar-color: #2a6cb8 rgba(0, 0, 0, 0.04);
+    }
+
+    .modal-chart-container::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .modal-chart-container::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #4a9eff, #7abfff);
+      box-shadow: none;
+    }
   }
 
   @keyframes modalCardFadeIn {

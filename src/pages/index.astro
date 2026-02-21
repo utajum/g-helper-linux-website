@@ -501,8 +501,19 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
               delay: 150
             }
           },
-          toolbar: { show: false },
-          zoom: { enabled: false },
+          toolbar: { 
+            show: true,
+            offset: { x: 0, y: 0 },
+            tools: { 
+              pan: true, 
+              zoom: true, 
+              zoomin: true, 
+              zoomout: true,
+              reset: true 
+            },
+            autoSelected: 'zoom'
+          },
+          zoom: { enabled: true },
           scrollable: { enabled: true, autoScaleYaxis: true }
         },
         series: [
@@ -573,11 +584,11 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
         // Add loaded class for fade-in effect
         chartEl.classList.add('loaded');
         
-        // Auto-zoom to latest 10 releases
-        if (totalData.length > 10) {
+        // Auto-zoom to latest 15 releases
+        if (totalData.length > 15) {
           chartInstance?.updateOptions({
             xaxis: {
-              min: totalData.length - 10,
+              min: totalData.length - 15,
               max: totalData.length - 1
             }
           });

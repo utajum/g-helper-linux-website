@@ -467,6 +467,10 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       const appimageData = chartContainer?.dataset.appimage ? JSON.parse(chartContainer.dataset.appimage) : [];
       const totalData = chartContainer?.dataset.total ? JSON.parse(chartContainer.dataset.total) : [];
 
+      // Set minimum width for chart to enable horizontal scrolling (40px per data point)
+      const minWidth = Math.max(totalData.length * 40, 400);
+      chartEl.style.minWidth = minWidth + 'px';
+
       // Check if we're in dark mode
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -568,6 +572,16 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       chartInstance.render().then(() => {
         // Add loaded class for fade-in effect
         chartEl.classList.add('loaded');
+        
+        // Auto-zoom to latest 10 releases
+        if (totalData.length > 10) {
+          chartInstance?.updateOptions({
+            xaxis: {
+              min: totalData.length - 10,
+              max: totalData.length - 1
+            }
+          });
+        }
       });
     }
 
@@ -1009,9 +1023,15 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     opacity: 1;
   }
 
-  /* Custom scrollbar - gaming theme */
+  /* Custom scrollbar - always visible */
+  .modal-chart-container {
+    scrollbar-width: thin;
+    scrollbar-color: #4a9eff transparent;
+  }
+
   .modal-chart-container::-webkit-scrollbar {
     height: 8px;
+    display: block;
   }
 
   .modal-chart-container::-webkit-scrollbar-track {

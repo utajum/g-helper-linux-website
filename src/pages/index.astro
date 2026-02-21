@@ -36,7 +36,7 @@ try {
   ]);
 
   if (releasesRes.ok && repoRes.ok) {
-    const releases = (await releasesRes.json()).slice(0, 20);
+    const releases = await releasesRes.json();
     const repo = await repoRes.json();
 
     const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
@@ -497,8 +497,19 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
               delay: 150
             }
           },
-          toolbar: { show: false },
-          zoom: { enabled: false }
+          toolbar: { 
+            show: true,
+            tools: { 
+              pan: true, 
+              zoom: true, 
+              zoomin: true, 
+              zoomout: true,
+              reset: true 
+            },
+            autoSelected: 'pan'
+          },
+          zoom: { enabled: true },
+          scrollable: { enabled: true, autoScaleYaxis: true }
         },
         series: [
           { name: 'Total', data: totalData },
@@ -564,7 +575,20 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       };
 
       chartInstance = new ApexCharts(chartEl, options);
-      chartInstance.render();
+      chartInstance.render().then(() => {
+        // Add loaded class for fade-in effect
+        chartEl.classList.add('loaded');
+        
+        // Auto-zoom to latest 10 releases
+        if (totalData.length > 10) {
+          chartInstance?.updateOptions({
+            xaxis: {
+              min: totalData.length - 10,
+              max: totalData.length - 1
+            }
+          });
+        }
+      });
     }
 
     // Load ApexCharts from CDN and initialize chart
@@ -987,13 +1011,42 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
 
   /* Chart Container */
   .modal-chart-container {
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 0.5rem 0;
     border-bottom: 1px solid rgba(74, 158, 255, 0.1);
     margin-bottom: 0.5rem;
+    min-height: 230px;
   }
 
   .modal-chart-container #downloadsChart {
     width: 100%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .modal-chart-container #downloadsChart.loaded {
+    opacity: 1;
+  }
+
+  /* Custom scrollbar - gaming theme */
+  .modal-chart-container::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .modal-chart-container::-webkit-scrollbar-track {
+    background: rgba(74, 158, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  .modal-chart-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #4a9eff, #7abfff);
+    border-radius: 4px;
+    box-shadow: 0 0 6px rgba(74, 158, 255, 0.4);
+  }
+
+  .modal-chart-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #7abfff, #4a9eff);
   }
 
   @keyframes modalCardFadeIn {

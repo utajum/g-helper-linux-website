@@ -497,18 +497,8 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
               delay: 150
             }
           },
-          toolbar: { 
-            show: true,
-            tools: { 
-              pan: true, 
-              zoom: true, 
-              zoomin: true, 
-              zoomout: true,
-              reset: true 
-            },
-            autoSelected: 'pan'
-          },
-          zoom: { enabled: true },
+          toolbar: { show: false },
+          zoom: { enabled: false },
           scrollable: { enabled: true, autoScaleYaxis: true }
         },
         series: [
@@ -578,16 +568,6 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       chartInstance.render().then(() => {
         // Add loaded class for fade-in effect
         chartEl.classList.add('loaded');
-        
-        // Auto-zoom to latest 10 releases
-        if (totalData.length > 10) {
-          chartInstance?.updateOptions({
-            xaxis: {
-              min: totalData.length - 10,
-              max: totalData.length - 1
-            }
-          });
-        }
       });
     }
 
@@ -1011,7 +991,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
 
   /* Chart Container */
   .modal-chart-container {
-    overflow-x: auto;
+    overflow-x: scroll;
     overflow-y: hidden;
     padding: 0.5rem 0;
     border-bottom: 1px solid rgba(74, 158, 255, 0.1);

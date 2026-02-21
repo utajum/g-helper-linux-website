@@ -36,7 +36,7 @@ try {
   ]);
 
   if (releasesRes.ok && repoRes.ok) {
-    const releases = (await releasesRes.json()).slice(0, 30);
+    const releases = (await releasesRes.json()).slice(0, 20);
     const repo = await repoRes.json();
 
     const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
@@ -522,14 +522,10 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
         dataLabels: { enabled: false },
         xaxis: {
           type: 'category',
-          labels: {
-            style: { colors: textColor, fontSize: '10px' },
-            rotate: -45,
-            rotateAlways: false,
-            hideOverlappingLabels: true
-          },
+          labels: { show: false },
           axisBorder: { show: false },
           axisTicks: { show: false },
+          tooltip: { enabled: true },
           crosshairs: {
             stroke: { color: '#4a9eff', width: 1, dashArray: 3 }
           }

@@ -504,15 +504,9 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       // @ts-ignore - ApexCharts is loaded from CDN
       const ApexCharts = (window as any).ApexCharts;
 
-      // Calculate initial zoom range
-      const defaultView = 15;
-      if (totalData.length > defaultView) {
-        chartCurrentMin = totalData.length - defaultView;
-        chartCurrentMax = totalData.length - 1;
-      } else {
-        chartCurrentMin = 0;
-        chartCurrentMax = totalData.length - 1;
-      }
+      // Track zoom state
+      chartCurrentMin = 0;
+      chartCurrentMax = totalData.length - 1;
 
       const options = {
         chart: {
@@ -563,8 +557,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           crosshairs: {
             stroke: { color: '#4a9eff', width: 1, dashArray: 3 }
           },
-          min: chartCurrentMin,
-          max: chartCurrentMax
+          range: 15
         },
         yaxis: {
           labels: {
@@ -607,42 +600,49 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       setupChartControls(totalData.length);
     }
 
+    let currentRange = 15;
+
     function setupChartControls(dataLength: number) {
       const zoomInBtn = document.getElementById('chartZoomIn');
       const zoomOutBtn = document.getElementById('chartZoomOut');
       const resetBtn = document.getElementById('chartReset');
 
-      zoomInBtn?.addEventListener('click', () => {
-        if (!chartInstance) return;
-        const range = chartCurrentMax - chartCurrentMin;
-        if (range <= 4) return; // Don't zoom in too far
-        chartCurrentMin = Math.min(chartCurrentMin + 2, chartCurrentMax - 4);
-        chartCurrentMax = Math.max(chartCurrentMax - 2, chartCurrentMin + 4);
-        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
+      // Remove old listeners by cloning
+      [zoomInBtn, zoomOutBtn, resetBtn].forEach(btn => {
+        if (!btn) return;
+        const clone = btn.cloneNode(true) as HTMLElement;
+        btn.parentNode?.replaceChild(clone, btn);
       });
 
-      zoomOutBtn?.addEventListener('click', () => {
+      document.getElementById('chartZoomIn')?.addEventListener('click', () => {
         if (!chartInstance) return;
-        chartCurrentMin = Math.max(0, chartCurrentMin - 2);
-        chartCurrentMax = Math.min(dataLength - 1, chartCurrentMax + 2);
-        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
+        currentRange = Math.max(4, currentRange - 3);
+        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        // Scroll to right after zoom
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
       });
 
-      resetBtn?.addEventListener('click', () => {
+      document.getElementById('chartZoomOut')?.addEventListener('click', () => {
         if (!chartInstance) return;
-        if (dataLength > 15) {
-          chartCurrentMin = dataLength - 15;
-          chartCurrentMax = dataLength - 1;
-        } else {
-          chartCurrentMin = 0;
-          chartCurrentMax = dataLength - 1;
-        }
-        chartInstance.updateOptions({ xaxis: { min: chartCurrentMin, max: chartCurrentMax } });
-        // Scroll back to right
-        const scrollContainer = document.getElementById('chartScrollContainer');
-        if (scrollContainer) {
-          scrollContainer.scrollLeft = scrollContainer.scrollWidth;
-        }
+        currentRange = Math.min(dataLength, currentRange + 3);
+        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
+      });
+
+      document.getElementById('chartReset')?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        currentRange = 15;
+        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
       });
     }
 

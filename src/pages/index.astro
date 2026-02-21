@@ -571,22 +571,22 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       chartInstance.render();
     }
 
-    // Load ApexCharts from CDN
-    function loadApexCharts() {
-      return new Promise<void>((resolve) => {
-        if ((window as any).ApexCharts) {
-          resolve();
-          return;
-        }
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
-        script.onload = () => resolve();
-        document.head.appendChild(script);
-      });
+    // Load ApexCharts from CDN and initialize chart
+    async function loadAndInitChart() {
+      // Wait for ApexCharts to be available
+      if (!(window as any).ApexCharts) {
+        await new Promise<void>((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+          script.onload = () => resolve();
+          document.head.appendChild(script);
+        });
+      }
+      initDownloadsChart();
     }
 
     // Make function globally available
-    (window as any).initDownloadsChart = initDownloadsChart;
+    (window as any).initDownloadsChart = loadAndInitChart;
   </script>
 
   <script>

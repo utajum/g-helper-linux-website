@@ -9,11 +9,21 @@ interface FormatGroup {
   percentage: number;
 }
 
+interface ChartDataPoint {
+  x: string;
+  y: number;
+}
+
 let totalDownloads = 0;
 let latestVersion: string | null = null;
 let stars = 0;
 let groupedData: FormatGroup[] = [];
 let fetchOk = false;
+
+// Chart data: each release is a point with date and download counts
+let chartBinaryData: ChartDataPoint[] = [];
+let chartAppimageData: ChartDataPoint[] = [];
+let chartTotalData: ChartDataPoint[] = [];
 
 const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
 const ghToken = import.meta.env.GITHUB_TOKEN;
@@ -32,14 +42,54 @@ try {
     const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
     const assetTotals: Record<string, number> = {};
 
+    // Build chart data: each release as a point
+    const releaseData: Record<string, { binary: number; appimage: number; date: string; version: string }> = {};
+
     for (const release of releases) {
+      const releaseDate = new Date((release as any).created_at);
+      const versionStr = (release as any).tag_name;
+
+      // Initialize or get existing data for this release version
+      if (!releaseData[versionStr]) {
+        releaseData[versionStr] = { binary: 0, appimage: 0, date: releaseDate.toISOString(), version: versionStr };
+      }
+
       for (const asset of (release as any).assets || []) {
         if (countedAssets.has(asset.name)) {
           totalDownloads += asset.download_count;
           assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
+
+          // Add to chart data
+          if (asset.name === 'ghelper') {
+            releaseData[versionStr].binary += asset.download_count;
+          } else if (asset.name === 'GHelper-x86_64.AppImage') {
+            releaseData[versionStr].appimage += asset.download_count;
+          }
         }
       }
     }
+
+    // Convert to chart data arrays, sorted by date
+    const sortedVersions = Object.keys(releaseData).sort((a, b) => {
+      const dateA = new Date(releaseData[a].date);
+      const dateB = new Date(releaseData[b].date);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    chartBinaryData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].binary
+    }));
+
+    chartAppimageData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].appimage
+    }));
+
+    chartTotalData = sortedVersions.map(version => ({
+      x: releaseData[version].version,
+      y: releaseData[version].binary + releaseData[version].appimage
+    }));
 
     const formatNames: Record<string, string> = {
       'ghelper': 'Native Binary',
@@ -152,6 +202,29 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           <div class="modal-grand-total">
             <div class="modal-grand-total-value" data-count={totalDownloads}>0</div>
             <div class="modal-grand-total-label">Total Downloads</div>
+          </div>
+          <!-- Download Growth Chart -->
+          <div 
+            class="modal-chart-wrapper" 
+            data-binary={JSON.stringify(chartBinaryData)} 
+            data-appimage={JSON.stringify(chartAppimageData)} 
+            data-total={JSON.stringify(chartTotalData)}
+          >
+            <div class="chart-header">
+              <div class="chart-toolbar">
+                <button class="chart-tool" id="chartZoomOut" aria-label="Zoom out">&minus;</button>
+                <button class="chart-tool" id="chartZoomIn" aria-label="Zoom in">+</button>
+                <button class="chart-tool" id="chartReset" aria-label="Reset zoom">&#8635;</button>
+              </div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-dot" style="background:#ffdd00"></span>Total</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#4a9eff"></span>Binary</span>
+                <span class="legend-item"><span class="legend-dot" style="background:#28c840"></span>AppImage</span>
+              </div>
+            </div>
+            <div class="modal-chart-container" id="chartScrollContainer">
+              <div id="downloadsChart"></div>
+            </div>
           </div>
           <div class="modal-cards">
             {groupedData.map((group, idx) => (
@@ -395,6 +468,213 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   </script>
 
   <script>
+    // ── Download Chart (load ApexCharts from CDN) ──
+    let chartInstance: any = null;
+    let chartTotalLength = 0;
+    let chartCurrentMin = 0;
+    let chartCurrentMax = 0;
+
+    function initDownloadsChart() {
+      const chartEl = document.getElementById('downloadsChart');
+      if (!chartEl) return;
+
+      // Get chart data from server-rendered data attributes
+      const chartWrapper = chartEl.closest('.modal-chart-wrapper') as HTMLElement;
+      const binaryData = chartWrapper?.dataset.binary ? JSON.parse(chartWrapper.dataset.binary) : [];
+      const appimageData = chartWrapper?.dataset.appimage ? JSON.parse(chartWrapper.dataset.appimage) : [];
+      const totalData = chartWrapper?.dataset.total ? JSON.parse(chartWrapper.dataset.total) : [];
+
+      chartTotalLength = totalData.length;
+
+      // Set minimum width for chart to enable horizontal scrolling (40px per data point)
+      const minWidth = Math.max(totalData.length * 40, 400);
+      chartEl.style.minWidth = minWidth + 'px';
+
+      // Check if we're in dark mode
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+      const textColor = isDark ? '#888' : '#666';
+      const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+      // Destroy existing chart if any
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      // @ts-ignore - ApexCharts is loaded from CDN
+      const ApexCharts = (window as any).ApexCharts;
+
+      // Track zoom state
+      chartCurrentMin = 0;
+      chartCurrentMax = totalData.length - 1;
+
+      const options = {
+        chart: {
+          type: 'area',
+          height: 220,
+          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          background: 'transparent',
+          // @ts-ignore - easing is valid in ApexCharts
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 800,
+            animateGradually: {
+              enabled: true,
+              delay: 150
+            }
+          },
+          toolbar: { show: false },
+          zoom: { enabled: false },
+          scrollable: { enabled: true, autoScaleYaxis: true }
+        },
+        series: [
+          { name: 'Total', data: totalData },
+          { name: 'Binary', data: binaryData },
+          { name: 'AppImage', data: appimageData }
+        ],
+        colors: ['#ffdd00', '#4a9eff', '#28c840'],
+        fill: {
+          type: 'gradient',
+          gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.4,
+            opacityTo: 0.05,
+            stops: [0, 90, 100]
+          }
+        },
+        stroke: {
+          curve: 'smooth',
+          width: 3
+        },
+        dataLabels: { enabled: false },
+        xaxis: {
+          type: 'category',
+          labels: { show: false },
+          axisBorder: { show: false },
+          axisTicks: { show: false },
+          tooltip: { enabled: true },
+          crosshairs: {
+            stroke: { color: '#4a9eff', width: 1, dashArray: 3 }
+          },
+          range: 15
+        },
+        yaxis: {
+          labels: {
+            style: { colors: textColor, fontSize: '10px' },
+            formatter: (val: number) => {
+              if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
+              return val.toString();
+            }
+          }
+        },
+        grid: {
+          borderColor: gridColor,
+          strokeDashArray: 2,
+          xaxis: { lines: { show: false } }
+        },
+        legend: { show: false },
+        tooltip: {
+          theme: isDark ? 'dark' : 'light',
+          fixed: {
+            enabled: true,
+            position: 'topRight',
+            offsetY: -10
+          },
+          x: { show: true },
+          y: {
+            formatter: (val: number) => val.toLocaleString()
+          },
+          style: { fontSize: '11px' }
+        }
+      };
+
+      chartInstance = new ApexCharts(chartEl, options);
+      chartInstance.render().then(() => {
+        // Add loaded class for fade-in effect
+        chartEl.classList.add('loaded');
+
+        // Scroll the container to the far right (latest releases)
+        const scrollContainer = document.getElementById('chartScrollContainer');
+        if (scrollContainer) {
+          scrollContainer.scrollLeft = scrollContainer.scrollWidth;
+        }
+      });
+
+      // Wire up custom zoom buttons
+      setupChartControls(totalData.length);
+    }
+
+    let currentRange = 15;
+
+    function setupChartControls(dataLength: number) {
+      const zoomInBtn = document.getElementById('chartZoomIn');
+      const zoomOutBtn = document.getElementById('chartZoomOut');
+      const resetBtn = document.getElementById('chartReset');
+
+      // Remove old listeners by cloning
+      [zoomInBtn, zoomOutBtn, resetBtn].forEach(btn => {
+        if (!btn) return;
+        const clone = btn.cloneNode(true) as HTMLElement;
+        btn.parentNode?.replaceChild(clone, btn);
+      });
+
+      document.getElementById('chartZoomIn')?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        currentRange = Math.max(4, currentRange - 3);
+        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        // Scroll to right after zoom
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
+      });
+
+      document.getElementById('chartZoomOut')?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        currentRange = Math.min(dataLength, currentRange + 3);
+        if (currentRange >= dataLength) {
+          // Show all — remove range constraint
+          chartInstance.updateOptions({ xaxis: { range: undefined } });
+        } else {
+          chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        }
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
+      });
+
+      document.getElementById('chartReset')?.addEventListener('click', () => {
+        if (!chartInstance) return;
+        currentRange = 15;
+        chartInstance.updateOptions({ xaxis: { range: currentRange } });
+        setTimeout(() => {
+          const sc = document.getElementById('chartScrollContainer');
+          if (sc) sc.scrollLeft = sc.scrollWidth;
+        }, 100);
+      });
+    }
+
+    // Load ApexCharts from CDN and initialize chart
+    async function loadAndInitChart() {
+      // Wait for ApexCharts to be available
+      if (!(window as any).ApexCharts) {
+        await new Promise<void>((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/apexcharts';
+          script.onload = () => resolve();
+          document.head.appendChild(script);
+        });
+      }
+      initDownloadsChart();
+    }
+
+    // Make function globally available
+    (window as any).initDownloadsChart = loadAndInitChart;
+  </script>
+
+  <script>
     // ── Stats animations + modal toggle ──
     function formatNumber(n: number): string {
       if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
@@ -465,6 +745,9 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           card.offsetHeight; // force reflow
           card.style.animation = '';
         });
+
+        // Initialize/Update chart when modal opens
+        (window as any).initDownloadsChart();
       });
 
       modalClose.addEventListener('click', () => {
@@ -741,7 +1024,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     max-width: 480px;
     width: 90%;
     max-height: 85vh;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -789,6 +1072,156 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     flex: 1;
     min-height: 0;
     padding-right: 0.25rem;
+  }
+
+  /* Chart Wrapper */
+  .modal-chart-wrapper {
+    border-bottom: 1px solid rgba(74, 158, 255, 0.1);
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Chart Header — toolbar left, legend right */
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0.25rem 0.5rem;
+  }
+
+  .chart-toolbar {
+    display: flex;
+    gap: 4px;
+  }
+
+  .chart-tool {
+    background: rgba(74, 158, 255, 0.08);
+    border: 1px solid rgba(74, 158, 255, 0.2);
+    color: #4a9eff;
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .chart-tool:hover {
+    background: rgba(74, 158, 255, 0.18);
+    border-color: rgba(74, 158, 255, 0.5);
+    box-shadow: 0 0 10px rgba(74, 158, 255, 0.25);
+    transform: translateY(-1px);
+  }
+
+  .chart-tool:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 10px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.02em;
+    opacity: 0.8;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .chart-tool {
+      background: rgba(42, 108, 184, 0.06);
+      border-color: rgba(42, 108, 184, 0.2);
+      color: #2a6cb8;
+    }
+
+    .chart-tool:hover {
+      background: rgba(42, 108, 184, 0.12);
+      border-color: rgba(42, 108, 184, 0.4);
+      box-shadow: 0 0 8px rgba(42, 108, 184, 0.15);
+    }
+
+    .chart-legend {
+      color: #666;
+    }
+  }
+
+  /* Chart Scroll Container */
+  .modal-chart-container {
+    overflow-x: scroll;
+    overflow-y: visible;
+    min-height: 230px;
+  }
+
+  .modal-chart-container #downloadsChart {
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .modal-chart-container #downloadsChart.loaded {
+    opacity: 1;
+  }
+
+  /* Custom scrollbar - gaming theme (always visible) */
+  .modal-chart-container {
+    scrollbar-width: thin;
+    scrollbar-color: #4a9eff rgba(74, 158, 255, 0.05);
+  }
+
+  .modal-chart-container::-webkit-scrollbar {
+    height: 8px;
+    display: block;
+  }
+
+  .modal-chart-container::-webkit-scrollbar-track {
+    background: rgba(74, 158, 255, 0.05);
+    border-radius: 4px;
+  }
+
+  .modal-chart-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #4a9eff, #7abfff);
+    border-radius: 4px;
+    box-shadow: 0 0 6px rgba(74, 158, 255, 0.4);
+  }
+
+  .modal-chart-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #7abfff, #4a9eff);
+  }
+
+  @media (prefers-color-scheme: light) {
+    .modal-chart-container {
+      scrollbar-color: #2a6cb8 rgba(0, 0, 0, 0.04);
+    }
+
+    .modal-chart-container::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .modal-chart-container::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #4a9eff, #7abfff);
+      box-shadow: none;
+    }
   }
 
   @keyframes modalCardFadeIn {

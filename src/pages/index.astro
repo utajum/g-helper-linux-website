@@ -123,7 +123,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           <span class="dot dot-green"></span>
         </div>
         <span class="terminal-title">bash</span>
-        <button class="copy-btn" id="copyBtn" aria-label="Copy to clipboard">
+        <button class="copy-btn" id="copyBtn" data-copy="curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash" aria-label="Copy to clipboard">
           <svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
         </button>
@@ -139,6 +139,24 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       <a href="/screenshot.png" target="_blank">
         <img src="/screenshot-main.png" alt="G-Helper for Linux interface showing performance modes, fan curves, GPU switching and battery controls" />
       </a>
+    </div>
+
+    <div class="terminal" id="terminalUninstall" style="margin-top: 2rem;">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <span class="terminal-title">uninstall</span>
+        <button class="copy-btn" data-copy="curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash -s -- --uninstall" aria-label="Copy uninstall command">
+          <svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-line" data-text="curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash -s -- --uninstall"><span class="prompt">$</span> <span class="line-text"></span><span class="cursor">_</span></div>
+      </div>
     </div>
   </section>
 
@@ -336,44 +354,48 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   </section>
 
   <script>
-    // ── Copy button ──
-    document.getElementById('copyBtn')?.addEventListener('click', () => {
-      const cmd = 'curl -sL https://raw.githubusercontent.com/utajum/g-helper-linux/master/install/install.sh | sudo bash';
-      navigator.clipboard.writeText(cmd).then(() => {
-        const copyIcon = document.querySelector('.copy-icon') as HTMLElement;
-        const checkIcon = document.querySelector('.check-icon') as HTMLElement;
-        if (copyIcon && checkIcon) {
-          copyIcon.style.display = 'none';
-          checkIcon.style.display = 'block';
-          setTimeout(() => {
-            copyIcon.style.display = 'block';
-            checkIcon.style.display = 'none';
-          }, 2000);
-        }
+    // ── Copy buttons (each carries its cmd in data-copy) ──
+    document.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const cmd = btn.dataset.copy || '';
+        if (!cmd) return;
+        navigator.clipboard.writeText(cmd).then(() => {
+          const copyIcon = btn.querySelector('.copy-icon') as HTMLElement | null;
+          const checkIcon = btn.querySelector('.check-icon') as HTMLElement | null;
+          if (copyIcon && checkIcon) {
+            copyIcon.style.display = 'none';
+            checkIcon.style.display = 'block';
+            setTimeout(() => {
+              copyIcon.style.display = 'block';
+              checkIcon.style.display = 'none';
+            }, 2000);
+          }
+        });
       });
     });
 
-    // ── Terminal typing animation ──
-    const terminal = document.getElementById('terminal');
-    if (terminal) {
-      const line = terminal.querySelector('.terminal-line') as HTMLElement;
-      const target = line.querySelector('.line-text') as HTMLElement;
-      const cursor = line.querySelector('.cursor') as HTMLElement;
+    // ── Terminal typing animation (one per .terminal, triggers on viewport) ──
+    document.querySelectorAll<HTMLElement>('.terminal').forEach((terminal) => {
+      const line = terminal.querySelector<HTMLElement>('.terminal-line[data-text]');
+      if (!line) return;
+      const target = line.querySelector<HTMLElement>('.line-text');
+      const cursor = line.querySelector<HTMLElement>('.cursor');
       const text = line.dataset.text || '';
+      if (!target || !cursor) return;
       let started = false;
 
       function run() {
         if (started) return;
         started = true;
-        cursor.classList.add('typing');
+        cursor!.classList.add('typing');
         let i = 0;
         function tick() {
           if (i < text.length) {
-            target.textContent += text[i];
+            target!.textContent += text[i];
             i++;
             setTimeout(tick, Math.floor(Math.random() * 36) + 25);
           } else {
-            cursor.classList.remove('typing');
+            cursor!.classList.remove('typing');
           }
         }
         tick();
@@ -391,7 +413,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
         { threshold: 0.4 },
       );
       observer.observe(terminal);
-    }
+    });
   </script>
 
   <script>

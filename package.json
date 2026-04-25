@@ -11,15 +11,17 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/netlify": "6.6.4",
-    "apexcharts": "^4.5.0",
-    "astro": "5.17.2",
-    "zustand": "5.0.11"
+    "@astrojs/netlify": "7.0.8",
+    "astro": "6.1.9",
+    "zustand": "5.0.12"
   },
   "devDependencies": {
-    "@astrojs/sitemap": "3.7.0",
-    "prettier": "3.8.1",
-    "typescript": "5.9.3"
+    "@astrojs/sitemap": "3.7.2",
+    "prettier": "3.8.3",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "uuid": "14.0.0"
   },
   "author": {
     "name": "utajum",

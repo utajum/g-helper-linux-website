@@ -245,6 +245,24 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
             <div class="modal-grand-total-value" data-count={totalDownloads}>0</div>
             <div class="modal-grand-total-label">Total Downloads</div>
           </div>
+          <!-- Format breakdown: Native Binary vs AppImage -->
+          <div class="modal-cards">
+            {groupedData.map((group, idx) => (
+              <div class="modal-card" style={`animation-delay: ${idx * 100}ms;`}>
+                <div class="modal-card-header">
+                  <div class="modal-card-os">
+                    <Fragment set:html={getFormatIcon(group.name)} />
+                    <span>{group.name}</span>
+                  </div>
+                  <div class="modal-card-count" data-count={group.count}>0</div>
+                </div>
+                <div class="modal-card-progress">
+                  <div class="modal-card-bar" data-percentage={group.percentage} style="width: 0%"></div>
+                </div>
+                <div class="modal-card-percentage">{group.percentage}% of all downloads</div>
+              </div>
+            ))}
+          </div>
           <!-- Per-version download breakdown -->
           <div class="modal-versions-wrap">
             <div class="modal-versions-legend">
@@ -282,23 +300,6 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
                 </li>
               ))}
             </ul>
-          </div>
-          <div class="modal-cards">
-            {groupedData.map((group, idx) => (
-              <div class="modal-card" style={`animation-delay: ${idx * 100}ms;`}>
-                <div class="modal-card-header">
-                  <div class="modal-card-os">
-                    <Fragment set:html={getFormatIcon(group.name)} />
-                    <span>{group.name}</span>
-                  </div>
-                  <div class="modal-card-count" data-count={group.count}>0</div>
-                </div>
-                <div class="modal-card-progress">
-                  <div class="modal-card-bar" data-percentage={group.percentage} style="width: 0%"></div>
-                </div>
-                <div class="modal-card-percentage">{group.percentage}% of all downloads</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
@@ -958,9 +959,9 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
      ───────────────────────────────────── */
 
   .modal-versions-wrap {
-    border-bottom: 1px solid rgba(74, 158, 255, 0.12);
-    margin: 0 0 0.5rem;
-    padding: 0 0 0.75rem;
+    border-top: 1px solid rgba(74, 158, 255, 0.12);
+    margin: 0.25rem 0 0;
+    padding: 0.75rem 0 0;
   }
 
   .modal-versions-legend {
@@ -1179,7 +1180,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
   /* Light mode — softer palette */
   @media (prefers-color-scheme: light) {
     .modal-versions-wrap {
-      border-bottom-color: rgba(0, 0, 0, 0.08);
+      border-top-color: rgba(0, 0, 0, 0.08);
     }
 
     .modal-versions-legend {

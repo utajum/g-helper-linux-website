@@ -9,10 +9,26 @@ interface FormatGroup {
   percentage: number;
 }
 
+interface VersionRow {
+  version: string;
+  total: number;
+  binary: number;
+  appimage: number;
+  isLatest: boolean;
+  isPeak: boolean;
+  /** % of peak total — drives bar fill width */
+  widthPct: number;
+  /** binary share within fill (0..100, sums with appimagePct to 100) */
+  binaryPct: number;
+  /** appimage share within fill */
+  appimagePct: number;
+}
+
 let totalDownloads = 0;
 let latestVersion: string | null = null;
 let stars = 0;
 let groupedData: FormatGroup[] = [];
+let versionRows: VersionRow[] = [];
 let fetchOk = false;
 
 const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
@@ -21,7 +37,8 @@ if (ghToken) ghHeaders.Authorization = `token ${ghToken}`;
 
 try {
   const [releasesRes, repoRes] = await Promise.all([
-    fetch('https://api.github.com/repos/utajum/g-helper-linux/releases', { headers: ghHeaders }),
+    // per_page=100 (GitHub max) so we get the full release history in a single request
+    fetch('https://api.github.com/repos/utajum/g-helper-linux/releases?per_page=100', { headers: ghHeaders }),
     fetch('https://api.github.com/repos/utajum/g-helper-linux', { headers: ghHeaders }),
   ]);
 
@@ -29,17 +46,74 @@ try {
     const releases = await releasesRes.json();
     const repo = await repoRes.json();
 
-    const countedAssets = new Set(['ghelper', 'GHelper-x86_64.AppImage']);
+    // Asset names we count toward installs:
+    //   - 'ghelper'        : current native binary
+    //   - 'ghelper-linux'  : older name for the same binary (pre-rename releases)
+    //   - 'GHelper-x86_64.AppImage' : portable AppImage
+    // Bundled libraries (libSkiaSharp.so, libHarfBuzzSharp.so) and udev rules
+    // are NOT counted — they're auxiliary files that ship alongside the binary
+    // and would otherwise inflate per-install numbers ~3x. shields.io's /total
+    // badge counts them, which is why our totals legitimately differ from it.
+    const BINARY_NAMES = new Set(['ghelper', 'ghelper-linux']);
+    const APPIMAGE_NAME = 'GHelper-x86_64.AppImage';
     const assetTotals: Record<string, number> = {};
 
+    // Per-version breakdown (keyed by tag, with timestamp for sort)
+    interface ReleaseAccum { binary: number; appimage: number; createdAt: number; version: string; }
+    const releaseData: Record<string, ReleaseAccum> = {};
+
     for (const release of releases) {
+      const versionStr = (release as any).tag_name as string;
+      const createdAt = new Date((release as any).created_at).getTime();
+
+      if (!releaseData[versionStr]) {
+        releaseData[versionStr] = { binary: 0, appimage: 0, createdAt, version: versionStr };
+      }
+
       for (const asset of (release as any).assets || []) {
-        if (countedAssets.has(asset.name)) {
-          totalDownloads += asset.download_count;
-          assetTotals[asset.name] = (assetTotals[asset.name] || 0) + asset.download_count;
+        const count = Number(asset.download_count) || 0;
+        if (BINARY_NAMES.has(asset.name)) {
+          totalDownloads += count;
+          // Bucket under canonical 'ghelper' key so the format-cards aggregation
+          // sees both old and new binary names as a single "Native Binary" group.
+          assetTotals['ghelper'] = (assetTotals['ghelper'] || 0) + count;
+          releaseData[versionStr].binary += count;
+        } else if (asset.name === APPIMAGE_NAME) {
+          totalDownloads += count;
+          assetTotals[APPIMAGE_NAME] = (assetTotals[APPIMAGE_NAME] || 0) + count;
+          releaseData[versionStr].appimage += count;
         }
       }
     }
+
+    // Sort newest → oldest (latest release at top of the list)
+    const sortedNewestFirst = Object.values(releaseData).sort(
+      (a, b) => b.createdAt - a.createdAt,
+    );
+
+    // Compute peak (highest total) for bar normalization + star marker
+    let peakTotal = 0;
+    for (const r of sortedNewestFirst) {
+      const t = r.binary + r.appimage;
+      if (t > peakTotal) peakTotal = t;
+    }
+    const peakSafe = peakTotal > 0 ? peakTotal : 1;
+
+    versionRows = sortedNewestFirst.map((r, idx) => {
+      const total = r.binary + r.appimage;
+      const totalSafe = total > 0 ? total : 1;
+      return {
+        version: r.version,
+        total,
+        binary: r.binary,
+        appimage: r.appimage,
+        isLatest: idx === 0,
+        isPeak: total === peakTotal && peakTotal > 0,
+        widthPct: Math.round((total / peakSafe) * 1000) / 10,
+        binaryPct: Math.round((r.binary / totalSafe) * 1000) / 10,
+        appimagePct: Math.round((r.appimage / totalSafe) * 1000) / 10,
+      };
+    });
 
     const formatNames: Record<string, string> = {
       'ghelper': 'Native Binary',
@@ -171,6 +245,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
             <div class="modal-grand-total-value" data-count={totalDownloads}>0</div>
             <div class="modal-grand-total-label">Total Downloads</div>
           </div>
+          <!-- Format breakdown: Native Binary vs AppImage -->
           <div class="modal-cards">
             {groupedData.map((group, idx) => (
               <div class="modal-card" style={`animation-delay: ${idx * 100}ms;`}>
@@ -187,6 +262,44 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
                 <div class="modal-card-percentage">{group.percentage}% of all downloads</div>
               </div>
             ))}
+          </div>
+          <!-- Per-version download breakdown -->
+          <div class="modal-versions-wrap">
+            <div class="modal-versions-legend">
+              <span class="legend-item"><span class="legend-dot" style="background:#4a9eff"></span>Binary</span>
+              <span class="legend-item"><span class="legend-dot" style="background:#28c840"></span>AppImage</span>
+            </div>
+            <ul class="modal-versions" id="modalVersions">
+              {versionRows.map((row, idx) => (
+                <li
+                  class:list={['version-row', { 'is-latest': row.isLatest, 'is-peak': row.isPeak }]}
+                  style={`--row-delay: ${idx * 28}ms; --width-pct: ${row.widthPct}%; --binary-pct: ${row.binaryPct}%; --appimage-pct: ${row.appimagePct}%;`}
+                  data-total={row.total}
+                  data-binary={row.binary}
+                  data-appimage={row.appimage}
+                >
+                  <div class="version-meta">
+                    <span class="version-pill">{row.version}</span>
+                    {row.isLatest && <span class="version-tag latest" aria-label="Latest release">LATEST</span>}
+                    {row.isPeak && <span class="version-tag peak" aria-label="Most downloaded">★</span>}
+                  </div>
+                  <div class="version-bar">
+                    <div class="version-bar-rail">
+                      <div class="version-bar-fill">
+                        <span class="version-fill-binary"></span>
+                        <span class="version-fill-appimage"></span>
+                      </div>
+                    </div>
+                    <div class="version-bar-detail">
+                      <span class="vbd-binary">binary {row.binary.toLocaleString()}</span>
+                      <span class="vbd-sep">·</span>
+                      <span class="vbd-appimage">appimage {row.appimage.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <span class="version-count" data-count={row.total}>0</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
@@ -487,6 +600,34 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           card.offsetHeight; // force reflow
           card.style.animation = '';
         });
+
+        // ── Per-version rows: stagger fade-in + bar fill + count animation ──
+        const versionRows = downloadsList.querySelectorAll<HTMLElement>('.version-row');
+
+        // 1. Reset all rows to initial state (collapsed bars, zeroed counts, no animation)
+        versionRows.forEach((row) => {
+          row.style.animation = 'none';
+          const fill = row.querySelector<HTMLElement>('.version-bar-fill');
+          if (fill) fill.style.width = '0%';
+          const countEl = row.querySelector<HTMLElement>('.version-count');
+          if (countEl) countEl.textContent = '0';
+        });
+
+        // 2. Force reflow so the next frame's animation triggers cleanly
+        downloadsList.offsetHeight;
+
+        // 3. Re-arm fade-in animation, fill bars, animate counts
+        requestAnimationFrame(() => {
+          versionRows.forEach((row) => {
+            row.style.animation = '';
+            const fill = row.querySelector<HTMLElement>('.version-bar-fill');
+            if (fill) fill.style.width = ''; // falls back to CSS (var(--width-pct))
+            const countEl = row.querySelector<HTMLElement>('.version-count');
+            if (countEl?.dataset.count) {
+              animateValue(countEl, parseInt(countEl.dataset.count, 10), 900);
+            }
+          });
+        });
       });
 
       modalClose.addEventListener('click', () => {
@@ -763,7 +904,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     max-width: 480px;
     width: 90%;
     max-height: 85vh;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -811,6 +952,314 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     flex: 1;
     min-height: 0;
     padding-right: 0.25rem;
+  }
+
+  /* ─────────────────────────────────────
+     Per-version download list
+     ───────────────────────────────────── */
+
+  .modal-versions-wrap {
+    border-top: 1px solid rgba(74, 158, 255, 0.12);
+    margin: 0.25rem 0 0;
+    padding: 0.75rem 0 0;
+  }
+
+  .modal-versions-legend {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    padding: 0 0.25rem 0.5rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .modal-versions {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .version-row {
+    display: grid;
+    grid-template-columns: minmax(82px, auto) 1fr auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    opacity: 0;
+    transform: translateX(-6px);
+    animation: versionRowIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--row-delay, 0ms) forwards;
+    transition: background 0.25s ease, border-color 0.25s ease;
+  }
+
+  @keyframes versionRowIn {
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .version-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .version-pill {
+    display: inline-block;
+    padding: 0.18rem 0.5rem;
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    border: 1px solid rgba(74, 158, 255, 0.25);
+    background: rgba(74, 158, 255, 0.07);
+    color: #a0c8ff;
+    transition: border-color 0.25s, background 0.25s, color 0.25s;
+  }
+
+  .version-tag {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .version-tag.latest {
+    color: #ffdd00;
+    background: rgba(255, 221, 0, 0.12);
+    border: 1px solid rgba(255, 221, 0, 0.4);
+    text-shadow: 0 0 8px rgba(255, 221, 0, 0.4);
+  }
+
+  .version-tag.peak {
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #28c840;
+    text-shadow: 0 0 10px rgba(40, 200, 64, 0.5);
+    letter-spacing: 0;
+  }
+
+  .version-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .version-bar-rail {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  }
+
+  .version-bar-fill {
+    display: flex;
+    height: 100%;
+    width: var(--width-pct, 0%);
+    border-radius: 3px;
+    overflow: hidden;
+    transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: width;
+  }
+
+  .version-fill-binary {
+    flex: 0 0 var(--binary-pct, 100%);
+    background: linear-gradient(90deg, #4a9eff, #7abfff);
+    box-shadow: 0 0 6px rgba(74, 158, 255, 0.35);
+  }
+
+  .version-fill-appimage {
+    flex: 0 0 var(--appimage-pct, 0%);
+    background: linear-gradient(90deg, #28c840, #5dd66f);
+    box-shadow: 0 0 6px rgba(40, 200, 64, 0.3);
+  }
+
+  .version-bar-detail {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.2s ease, max-height 0.2s ease;
+    color: rgba(160, 200, 255, 0.7);
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+  }
+
+  .version-row:hover .version-bar-detail,
+  .version-row:focus-within .version-bar-detail {
+    opacity: 0.9;
+    max-height: 1.4em;
+  }
+
+  .vbd-binary { color: #7abfff; }
+  .vbd-appimage { color: #5dd66f; }
+  .vbd-sep { opacity: 0.4; }
+
+  .version-count {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+    color: #a0c8ff;
+    min-width: 3em;
+    text-align: right;
+    align-self: center;
+    transition: color 0.25s, text-shadow 0.25s;
+  }
+
+  /* Hover — entire row glows */
+  .version-row:hover {
+    background: rgba(74, 158, 255, 0.06);
+    border-color: rgba(74, 158, 255, 0.15);
+  }
+
+  .version-row:hover .version-pill {
+    border-color: rgba(74, 158, 255, 0.45);
+    background: rgba(74, 158, 255, 0.12);
+    color: #c8dfff;
+  }
+
+  /* Latest row — yellow accent */
+  .version-row.is-latest .version-pill {
+    border-color: rgba(255, 221, 0, 0.4);
+    background: rgba(255, 221, 0, 0.06);
+    color: #ffdd00;
+  }
+
+  /* Peak row — green count + faint left-to-right tint */
+  .version-row.is-peak {
+    background: linear-gradient(90deg, transparent 0%, rgba(40, 200, 64, 0.04) 100%);
+  }
+
+  .version-row.is-peak .version-count {
+    color: #5dd66f;
+    text-shadow: 0 0 12px rgba(40, 200, 64, 0.45);
+  }
+
+  .version-row.is-peak:hover {
+    background: linear-gradient(90deg, rgba(74, 158, 255, 0.04) 0%, rgba(40, 200, 64, 0.08) 100%);
+  }
+
+  /* Light mode — softer palette */
+  @media (prefers-color-scheme: light) {
+    .modal-versions-wrap {
+      border-top-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .modal-versions-legend {
+      color: #666;
+    }
+
+    .version-pill {
+      border-color: rgba(42, 108, 184, 0.25);
+      background: rgba(42, 108, 184, 0.06);
+      color: #2a6cb8;
+    }
+
+    .version-bar-rail {
+      background: rgba(0, 0, 0, 0.06);
+      box-shadow: none;
+    }
+
+    .version-bar-detail {
+      color: rgba(0, 0, 0, 0.55);
+    }
+
+    .vbd-binary { color: #2a6cb8; }
+    .vbd-appimage { color: #208c30; }
+
+    .version-count {
+      color: #2a6cb8;
+    }
+
+    .version-row:hover {
+      background: rgba(42, 108, 184, 0.05);
+      border-color: rgba(42, 108, 184, 0.18);
+    }
+
+    .version-row:hover .version-pill {
+      border-color: rgba(42, 108, 184, 0.45);
+      background: rgba(42, 108, 184, 0.1);
+    }
+
+    .version-row.is-latest .version-pill {
+      border-color: rgba(184, 134, 11, 0.5);
+      background: rgba(255, 200, 0, 0.12);
+      color: #b8860b;
+    }
+
+    .version-tag.latest {
+      color: #b8860b;
+      background: rgba(255, 200, 0, 0.18);
+      border-color: rgba(184, 134, 11, 0.5);
+      text-shadow: none;
+    }
+
+    .version-tag.peak {
+      color: #208c30;
+      text-shadow: none;
+    }
+
+    .version-row.is-peak {
+      background: linear-gradient(90deg, transparent 0%, rgba(40, 140, 48, 0.06) 100%);
+    }
+
+    .version-row.is-peak .version-count {
+      color: #208c30;
+      text-shadow: none;
+    }
+  }
+
+  /* Mobile — let pill wrap above bar if needed */
+  @media (max-width: 480px) {
+    .version-row {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "meta count"
+        "bar  bar";
+      row-gap: 0.35rem;
+    }
+
+    .version-meta { grid-area: meta; }
+    .version-count { grid-area: count; }
+    .version-bar { grid-area: bar; }
   }
 
   @keyframes modalCardFadeIn {

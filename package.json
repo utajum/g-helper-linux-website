@@ -11,6 +11,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "7.1.1",
     "@astrojs/netlify": "7.0.8",
     "astro": "6.1.9",
     "zustand": "5.0.12"

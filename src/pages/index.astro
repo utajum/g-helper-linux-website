@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Demo from '../components/Demo.astro';
+import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 
 // ── Server-side GitHub data fetching ──
 interface FormatGroup {
@@ -30,6 +31,7 @@ let stars = 0;
 let groupedData: FormatGroup[] = [];
 let versionRows: VersionRow[] = [];
 let fetchOk = false;
+let changelogHtml = '';
 
 const ghHeaders: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
 const ghToken = import.meta.env.GITHUB_TOKEN;
@@ -153,6 +155,41 @@ function getFormatIcon(name: string): string {
   return '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
 }
 
+// Changelog (loaded from the g-helper-linux repo's CHANGELOG.md)
+// Drop the leading "# Changelog" H1 and the "## [Unreleased]" section so the
+// modal starts at the first real release.
+function stripUnreleased(md: string): string {
+  const out: string[] = [];
+  let skipping = false;
+  for (const line of md.split('\n')) {
+    if (/^#\s+/.test(line)) continue;
+    if (/^##\s+\[Unreleased\]/i.test(line)) { skipping = true; continue; }
+    if (skipping) {
+      if (/^##\s+/.test(line)) skipping = false;
+      else continue;
+    }
+    out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+try {
+  const clRes = await fetch('https://raw.githubusercontent.com/utajum/g-helper-linux/master/CHANGELOG.md', {
+    headers: { 'User-Agent': 'g-helper-linux-site' },
+  });
+  if (clRes.ok) {
+    // Render with Astro's own markdown engine. syntaxHighlight:false keeps code
+    // blocks as plain <pre><code> (themed by our CSS); raw <img> tags in the
+    // changelog pass through (rehype-raw) so screenshots render. smartypants is
+    // off so '-' stays literal.
+    const processor = await createMarkdownProcessor({ gfm: true, smartypants: false, syntaxHighlight: false });
+    const { code } = await processor.render(stripUnreleased(await clRes.text()));
+    changelogHtml = code;
+  }
+} catch {
+  // Silently fail — the Latest Version box just won't open a changelog modal
+}
+
 // CDN cache: 5 minutes
 Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
 ---
@@ -168,7 +205,7 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
           <span class="stat-value" id="statDownloads" data-count={totalDownloads}>{formatNumber(totalDownloads)}</span>
           <span class="stat-label">Total Downloads</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" id={changelogHtml ? 'statVersionItem' : undefined} style={changelogHtml ? 'cursor: pointer;' : undefined}>
           <span class="stat-value" id="statVersion">{latestVersion || '--'}</span>
           <span class="stat-label">Latest Version</span>
         </div>
@@ -301,6 +338,19 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
               ))}
             </ul>
           </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <!-- Changelog Modal -->
+  {changelogHtml && (
+    <div class="modal-overlay" id="changelogModal" style="display: none;">
+      <div class="modal modal-changelog">
+        <button class="modal-close" id="changelogClose">&times;</button>
+        <h2>Changelog</h2>
+        <div class="modal-list">
+          <div class="changelog-content" set:html={changelogHtml} />
         </div>
       </div>
     </div>
@@ -637,6 +687,25 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
           modal.style.display = 'none';
+        }
+      });
+    }
+
+    // Changelog modal toggle (Latest Version box)
+    const clModal = document.getElementById('changelogModal');
+    const clClose = document.getElementById('changelogClose');
+    const versionItem = document.getElementById('statVersionItem');
+
+    if (versionItem && clModal && clClose) {
+      versionItem.addEventListener('click', () => {
+        clModal.style.display = 'flex';
+      });
+      clClose.addEventListener('click', () => {
+        clModal.style.display = 'none';
+      });
+      clModal.addEventListener('click', (e) => {
+        if (e.target === clModal) {
+          clModal.style.display = 'none';
         }
       });
     }
@@ -1336,6 +1405,118 @@ Astro.response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-r
     .modal-close:hover {
       color: #2a6cb8;
     }
+  }
+
+  .modal-changelog {
+    max-width: 640px;
+  }
+
+  .changelog-content {
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  /* version header (## vX.Y.Z) */
+  .changelog-content :global(h2) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    margin: 1.5rem 0 0.5rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .changelog-content :global(h2:first-child) {
+    margin-top: 0;
+  }
+
+  /* section label (### Added / Fixed / Changed / Action required) */
+  .changelog-content :global(h3) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin: 1rem 0 0.35rem;
+    opacity: 0.85;
+  }
+
+  .changelog-content :global(p) {
+    margin: 0.5rem 0;
+  }
+
+  .changelog-content :global(ul) {
+    margin: 0 0 0.6rem;
+    padding-left: 1.25rem;
+    list-style: disc;
+  }
+
+  .changelog-content :global(li) {
+    line-height: 1.5;
+    margin: 0.28rem 0;
+  }
+
+  .changelog-content :global(code) {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.82em;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+
+  .changelog-content :global(pre) {
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+    overflow-x: auto;
+    margin: 0.5rem 0 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  .changelog-content :global(pre code) {
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    font-size: inherit;
+  }
+
+  .changelog-content :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.6rem 0;
+  }
+
+  .changelog-content :global(a) {
+    text-decoration: underline;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .changelog-content :global(h2) {
+      color: #4a9eff;
+      border-bottom: 1px solid rgba(74, 158, 255, 0.2);
+    }
+    .changelog-content :global(h3) { color: #7abfff; }
+    .changelog-content :global(code) { background: rgba(74, 158, 255, 0.12); color: #cfe4ff; }
+    .changelog-content :global(pre) {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(74, 158, 255, 0.15);
+    }
+    .changelog-content :global(img) { border: 1px solid rgba(74, 158, 255, 0.2); }
+    .changelog-content :global(a) { color: #4a9eff; }
+  }
+
+  @media (prefers-color-scheme: light) {
+    .changelog-content :global(h2) {
+      color: #2a6cb8;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    .changelog-content :global(h3) { color: #3a7bc8; }
+    .changelog-content :global(code) { background: rgba(0, 0, 0, 0.06); color: #1a4a8a; }
+    .changelog-content :global(pre) {
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .changelog-content :global(img) { border: 1px solid rgba(0, 0, 0, 0.1); }
+    .changelog-content :global(a) { color: #2a6cb8; }
   }
 
   /* ── Dynamic modal content (injected via JS, needs :global) ── */
